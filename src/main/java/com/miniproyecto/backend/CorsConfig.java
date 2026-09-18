@@ -16,7 +16,7 @@ public class CorsConfig {
                 registry.addMapping("/api/**")
                         .allowedOrigins(
                                 "http://localhost:5173",
-                                "https://front-derjv29ck-inmemorialake.vercel.app"
+                                "https://mini-proyecto-1-pi-1.inmemorialake.dev"
                         )
                         .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE");
             }
