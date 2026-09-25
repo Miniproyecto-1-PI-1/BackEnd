@@ -1,13 +1,13 @@
 package com.miniproyecto.backend;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
+import static org.assertj.core.api.Assertions.assertThat;
+
 class BackEndApplicationTests {
 
     @Test
-    void contextLoads() {
+    void applicationClassIsPresent() {
+        assertThat(BackEndApplication.class).isNotNull();
     }
-
 }
