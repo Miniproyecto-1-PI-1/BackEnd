@@ -11,12 +11,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import tools.jackson.databind.json.JsonMapper;
-import tools.jackson.databind.SerializationFeature;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -44,13 +43,11 @@ class EventControllerTest {
     void setUp() {
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
-        JsonMapper jsonMapper = JsonMapper.builder()
-                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
-                .build();
+        JsonMapper jsonMapper = JsonMapper.builder().build();
         mockMvc = MockMvcBuilders.standaloneSetup(new EventController(eventService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)
-                .setMessageConverters(new MappingJackson2HttpMessageConverter(jsonMapper))
+                .setMessageConverters(new JacksonJsonHttpMessageConverter(jsonMapper))
                 .build();
     }
 
