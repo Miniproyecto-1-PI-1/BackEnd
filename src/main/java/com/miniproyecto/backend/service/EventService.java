@@ -94,9 +94,53 @@ public class EventService {
 
     @Transactional(readOnly = true)
     public EventDetailResponse getById(Long id) {
-        Event event = eventRepository.findDetailByIdAndUserId(id, CurrentUser.id())
+        return toDetail(findOwnedEvent(id));
+    }
+
+    @Transactional
+    public EventDetailResponse addTask(Long eventId, TaskRequest request) {
+        Event event = findOwnedEvent(eventId);
+        Task task = toTask(request);
+        task.setEvent(event);
+        event.getTasks().add(task);
+        return toDetail(eventRepository.save(event));
+    }
+
+    @Transactional
+    public EventDetailResponse updateTask(Long eventId, Long taskId, TaskRequest request) {
+        Event event = findOwnedEvent(eventId);
+        Task task = findTask(event, taskId);
+        task.setName(request.name().trim());
+        task.setDescription(request.description());
+        if (request.dueDate() != null) {
+            task.setDueDate(request.dueDate());
+        }
+        task.setStartTime(request.startTime());
+        task.setEndTime(request.endTime());
+        task.setEstimatedHours(estimatedHours(request));
+        if (request.status() != null) {
+            task.setStatus(request.status());
+        }
+        return toDetail(eventRepository.save(event));
+    }
+
+    @Transactional
+    public void deleteTask(Long eventId, Long taskId) {
+        Event event = findOwnedEvent(eventId);
+        event.getTasks().remove(findTask(event, taskId));
+        eventRepository.save(event);
+    }
+
+    private Event findOwnedEvent(Long eventId) {
+        return eventRepository.findDetailByIdAndUserId(eventId, CurrentUser.id())
                 .orElseThrow(() -> new NotFoundException("Evento no encontrado"));
-        return toDetail(event);
+    }
+
+    private Task findTask(Event event, Long taskId) {
+        return event.getTasks().stream()
+                .filter(task -> task.getId().equals(taskId))
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException("Gestión no encontrada"));
     }
 
     private Task toTask(TaskRequest request) {
@@ -106,9 +150,16 @@ public class EventService {
         task.setDueDate(request.dueDate() != null ? request.dueDate() : LocalDate.now());
         task.setStartTime(request.startTime());
         task.setEndTime(request.endTime());
-        task.setEstimatedHours(estimatedHours(request.startTime(), request.endTime()));
+        task.setEstimatedHours(estimatedHours(request));
         task.setStatus(TaskStatus.PENDING);
         return task;
+    }
+
+    private BigDecimal estimatedHours(TaskRequest request) {
+        if (request.estimatedHours() != null) {
+            return request.estimatedHours().setScale(2, RoundingMode.HALF_UP);
+        }
+        return estimatedHours(request.startTime(), request.endTime());
     }
 
     BigDecimal estimatedHours(LocalTime startTime, LocalTime endTime) {
