@@ -5,6 +5,7 @@ import java.time.LocalDate;
 public record EventSummaryResponse(
         Long id,
         String name,
+        String type,
         LocalDate date,
         String clientName,
         long totalTasks,
