@@ -98,6 +98,7 @@ class EventControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.errors.name").exists())
                 .andExpect(jsonPath("$.errors.date").exists())
                 .andExpect(jsonPath("$.errors.place").exists());
@@ -111,6 +112,25 @@ class EventControllerTest {
 
         mockMvc.perform(get("/api/events/99"))
                 .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.detail").value("Evento no encontrado"));
+    }
+
+    @Test
+    void create_returns400WithSameShapeWhenBodyIsMalformed() throws Exception {
+        mockMvc.perform(post("/api/events")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{ \"name\": "))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.title").value("Solicitud inválida"))
+                .andExpect(jsonPath("$.errors").isMap());
+    }
+
+    @Test
+    void getById_returns400WhenIdIsNotANumber() throws Exception {
+        mockMvc.perform(get("/api/events/abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
     }
 }
