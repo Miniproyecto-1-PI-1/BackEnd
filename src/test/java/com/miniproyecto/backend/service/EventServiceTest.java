@@ -4,6 +4,7 @@ import com.miniproyecto.backend.dto.ClientRequest;
 import com.miniproyecto.backend.dto.CreateEventRequest;
 import com.miniproyecto.backend.dto.EventDetailResponse;
 import com.miniproyecto.backend.dto.TaskRequest;
+import com.miniproyecto.backend.dto.UpdateEventRequest;
 import com.miniproyecto.backend.entity.AppUser;
 import com.miniproyecto.backend.entity.Client;
 import com.miniproyecto.backend.entity.Event;
@@ -174,6 +175,39 @@ class EventServiceTest {
     }
 
     @Test
+    void update_replacesEventDataAndKeepsTasks() {
+        Event event = event(10L);
+        existingTask(event, 5L);
+        ClientRequest clientRequest = new ClientRequest("Camila Ríos", null, null);
+        Client client = client(20L, "Camila Ríos");
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        when(eventRepository.save(event)).thenReturn(event);
+        when(clientService.findOrCreate(user, clientRequest)).thenReturn(client);
+
+        EventDetailResponse response = eventService.update(10L, new UpdateEventRequest(
+                "  Boda Ana y Luis ", " Boda ", LocalDate.of(2027, 1, 15), null, " Hacienda ", null, clientRequest));
+
+        assertThat(response.name()).isEqualTo("Boda Ana y Luis");
+        assertThat(response.type()).isEqualTo("Boda");
+        assertThat(response.place()).isEqualTo("Hacienda");
+        assertThat(response.time()).isEqualTo(LocalTime.MIDNIGHT);
+        assertThat(response.client().id()).isEqualTo(20L);
+        assertThat(response.tasks()).hasSize(1);
+    }
+
+    @Test
+    void delete_removesOwnedEventOrThrowsNotFound() {
+        Event event = event(10L);
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        when(eventRepository.findDetailByIdAndUserId(99L, 1L)).thenReturn(Optional.empty());
+
+        eventService.delete(10L);
+
+        verify(eventRepository).delete(event);
+        assertThatThrownBy(() -> eventService.delete(99L)).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
     void estimatedHours_usesDurationWithTwoDecimals() {
         assertThat(eventService.estimatedHours(LocalTime.of(9, 0), LocalTime.of(10, 0)))
                 .isEqualByComparingTo(new BigDecimal("1.00"));
@@ -237,6 +271,7 @@ class EventServiceTest {
     private static CreateEventRequest request(ClientRequest client, List<TaskRequest> tasks) {
         return new CreateEventRequest(
                 "Fiesta de prueba",
+                "Social",
                 LocalDate.of(2026, 12, 5),
                 LocalTime.of(18, 0),
                 "Salón Central",

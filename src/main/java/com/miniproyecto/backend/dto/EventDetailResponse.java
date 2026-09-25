@@ -9,6 +9,7 @@ import java.util.List;
 public record EventDetailResponse(
         Long id,
         String name,
+        String type,
         String description,
         LocalDate date,
         @JsonFormat(pattern = "HH:mm") LocalTime time,

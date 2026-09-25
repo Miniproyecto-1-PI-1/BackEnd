@@ -7,6 +7,7 @@ import com.miniproyecto.backend.service.EventService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import com.miniproyecto.backend.dto.TaskRequest;
+import com.miniproyecto.backend.dto.UpdateEventRequest;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -45,6 +46,17 @@ public class EventController {
     @GetMapping("/{id}")
     public EventDetailResponse getById(@PathVariable Long id) {
         return eventService.getById(id);
+    }
+
+    @PutMapping("/{id}")
+    public EventDetailResponse update(@PathVariable Long id, @Valid @RequestBody UpdateEventRequest request) {
+        return eventService.update(id, request);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        eventService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/tasks")

@@ -6,6 +6,7 @@ import com.miniproyecto.backend.dto.EventDetailResponse;
 import com.miniproyecto.backend.dto.EventSummaryResponse;
 import com.miniproyecto.backend.dto.TaskRequest;
 import com.miniproyecto.backend.dto.TaskResponse;
+import com.miniproyecto.backend.dto.UpdateEventRequest;
 import com.miniproyecto.backend.entity.AppUser;
 import com.miniproyecto.backend.entity.Client;
 import com.miniproyecto.backend.entity.Event;
@@ -56,6 +57,7 @@ public class EventService {
         event.setUser(user);
         event.setClient(client);
         event.setName(request.name().trim());
+        event.setType(blankToNull(request.type()));
         event.setDescription(request.description());
         event.setEventDate(request.date());
         event.setEventTime(request.time() != null ? request.time() : LocalTime.MIDNIGHT);
@@ -82,6 +84,7 @@ public class EventService {
                     return new EventSummaryResponse(
                             row.getId(),
                             row.getName(),
+                            row.getType(),
                             row.getDate(),
                             row.getClientName(),
                             total,
@@ -95,6 +98,24 @@ public class EventService {
     @Transactional(readOnly = true)
     public EventDetailResponse getById(Long id) {
         return toDetail(findOwnedEvent(id));
+    }
+
+    @Transactional
+    public EventDetailResponse update(Long id, UpdateEventRequest request) {
+        Event event = findOwnedEvent(id);
+        event.setClient(clientService.findOrCreate(event.getUser(), request.client()));
+        event.setName(request.name().trim());
+        event.setType(blankToNull(request.type()));
+        event.setDescription(request.description());
+        event.setEventDate(request.date());
+        event.setEventTime(request.time() != null ? request.time() : LocalTime.MIDNIGHT);
+        event.setPlace(request.place().trim());
+        return toDetail(eventRepository.save(event));
+    }
+
+    @Transactional
+    public void delete(Long id) {
+        eventRepository.delete(findOwnedEvent(id));
     }
 
     @Transactional
@@ -143,6 +164,10 @@ public class EventService {
                 .orElseThrow(() -> new NotFoundException("Gestión no encontrada"));
     }
 
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
     private Task toTask(TaskRequest request) {
         Task task = new Task();
         task.setName(request.name().trim());
@@ -187,6 +212,7 @@ public class EventService {
         return new EventDetailResponse(
                 event.getId(),
                 event.getName(),
+                event.getType(),
                 event.getDescription(),
                 event.getEventDate(),
                 event.getEventTime(),

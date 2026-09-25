@@ -59,6 +59,7 @@ class EventControllerTest {
         EventDetailResponse created = new EventDetailResponse(
                 15L,
                 "Fiesta de prueba",
+                "Social",
                 "Celebración",
                 LocalDate.of(2026, 12, 5),
                 LocalTime.of(18, 0),
@@ -191,8 +192,47 @@ class EventControllerTest {
         verify(eventService).deleteTask(15L, 3L);
     }
 
+    @Test
+    void update_returns200AndDeleteReturns204() throws Exception {
+        when(eventService.update(eq(15L), any())).thenReturn(emptyEvent());
+
+        mockMvc.perform(put("/api/events/15")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "name": "Fiesta de prueba", "type": "Social", "date": "2026-12-05", "place": "Salón Central" }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.type").value("Social"));
+
+        mockMvc.perform(delete("/api/events/15"))
+                .andExpect(status().isNoContent());
+        verify(eventService).delete(15L);
+    }
+
+    @Test
+    void update_returns400WithFieldMessagesWhenRequiredFieldsAreMissing() throws Exception {
+        mockMvc.perform(put("/api/events/15")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.name").value("El nombre es obligatorio."))
+                .andExpect(jsonPath("$.errors.date").value("La fecha es obligatoria."))
+                .andExpect(jsonPath("$.errors.place").value("El lugar es obligatorio."));
+
+        verify(eventService, never()).update(any(), any());
+    }
+
+    @Test
+    void delete_returns404WhenEventDoesNotExist() throws Exception {
+        org.mockito.Mockito.doThrow(new NotFoundException("Evento no encontrado")).when(eventService).delete(99L);
+
+        mockMvc.perform(delete("/api/events/99"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Evento no encontrado"));
+    }
+
     private static EventDetailResponse emptyEvent() {
-        return new EventDetailResponse(15L, "Fiesta de prueba", null, LocalDate.of(2026, 12, 5),
+        return new EventDetailResponse(15L, "Fiesta de prueba", "Social", null, LocalDate.of(2026, 12, 5),
                 LocalTime.of(18, 0), "Salón Central", null, List.of(), 0, 0, 0);
     }
 }
