@@ -1,4 +1,4 @@
-package com.miniproyecto.backend;
+package com.miniproyecto.backend.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,9 +16,10 @@ public class CorsConfig {
                 registry.addMapping("/api/**")
                         .allowedOrigins(
                                 "http://localhost:5173",
-                                "https://mini-proyecto-1-pi-1.inmemorialake.dev"
+                                "https://mini-proyecto-1-pi-1.inmemorialake.dev",
+                                "https://magenta-gumdrop-40d40f.netlify.app"
                         )
-                        .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE");
+                        .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
             }
         };
     }
