@@ -26,6 +26,11 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, "Solicitud inválida", "Revisa los campos marcados", errors);
     }
 
+    @ExceptionHandler(FieldErrorException.class)
+    public ResponseEntity<ApiErrorResponse> handleFieldErrors(FieldErrorException ex) {
+        return build(HttpStatus.BAD_REQUEST, "Solicitud inválida", "Revisa los campos marcados", ex.getErrors());
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiErrorResponse> handleUnreadable(HttpMessageNotReadableException ex) {
         return build(HttpStatus.BAD_REQUEST, "Solicitud inválida", "El cuerpo de la petición no es un JSON válido o tiene un formato incorrecto", Map.of());
@@ -39,6 +44,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleNotFound(NotFoundException ex) {
         return build(HttpStatus.NOT_FOUND, "Recurso no encontrado", ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnauthorized(UnauthorizedException ex) {
+        return build(HttpStatus.UNAUTHORIZED, "No autenticado", ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ApiErrorResponse> handleConflict(ConflictException ex) {
+        return build(HttpStatus.CONFLICT, "Conflicto", ex.getMessage(), Map.of());
     }
 
     @ExceptionHandler(NoResourceFoundException.class)

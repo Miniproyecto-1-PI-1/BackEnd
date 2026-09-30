@@ -13,6 +13,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     Optional<Event> findByIdAndUser_Id(Long id, Long userId);
 
+    List<Event> findByUser_Id(Long userId);
+
     @Query("""
             SELECT DISTINCT e
             FROM Event e
