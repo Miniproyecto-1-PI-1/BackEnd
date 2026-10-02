@@ -18,6 +18,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,9 +50,12 @@ class TodayServiceTest {
     private record FakeView(
             Long id,
             String name,
+            String description,
             TaskStatus status,
             BigDecimal estimatedHours,
-            LocalDate date
+            LocalDate date,
+            LocalTime startTime,
+            LocalTime endTime
     ) implements TaskTodayView {
 
         @Override
@@ -62,6 +66,11 @@ class TodayServiceTest {
         @Override
         public String getName() {
             return name;
+        }
+
+        @Override
+        public String getDescription() {
+            return description;
         }
 
         @Override
@@ -77,6 +86,16 @@ class TodayServiceTest {
         @Override
         public LocalDate getDate() {
             return date;
+        }
+
+        @Override
+        public LocalTime getStartTime() {
+            return startTime;
+        }
+
+        @Override
+        public LocalTime getEndTime() {
+            return endTime;
         }
 
         @Override
@@ -96,19 +115,19 @@ class TodayServiceTest {
     }
 
     private TaskTodayView view(long id, LocalDate date, TaskStatus status, String hours) {
-        return new FakeView(id, "Gestión " + id, status, new BigDecimal(hours), date);
+        return new FakeView(id, "Gestión " + id, null, status, new BigDecimal(hours), date, null, null);
     }
 
     @Test
     void classifiesOverdueTodayAndUpcomingKeepingRepositoryOrder() {
-        when(taskRepository.findTodayTasks(1L, TODAY.plusDays(7))).thenReturn(List.of(
+        when(taskRepository.findTodayTasks(1L, TODAY.plusDays(7), false)).thenReturn(List.of(
                 view(1, TODAY.minusDays(3), TaskStatus.PENDING, "2.00"),
                 view(2, TODAY, TaskStatus.PENDING, "0.50"),
                 view(3, TODAY, TaskStatus.POSTPONED, "3.00"),
                 view(4, TODAY.plusDays(2), TaskStatus.PENDING, "1.00")
         ));
 
-        TodayResponse response = todayService.build(TODAY, null);
+        TodayResponse response = todayService.build(TODAY, null, false);
 
         assertThat(response.today()).isEqualTo(TODAY);
         assertThat(response.overdueCount()).isEqualTo(1);
@@ -123,34 +142,62 @@ class TodayServiceTest {
 
     @Test
     void usesSevenDaysWindowByDefault() {
-        when(taskRepository.findTodayTasks(1L, TODAY.plusDays(7))).thenReturn(List.of());
+        when(taskRepository.findTodayTasks(1L, TODAY.plusDays(7), false)).thenReturn(List.of());
 
-        todayService.build(TODAY, null);
+        todayService.build(TODAY, null, false);
 
-        verify(taskRepository).findTodayTasks(1L, TODAY.plusDays(7));
+        verify(taskRepository).findTodayTasks(1L, TODAY.plusDays(7), false);
     }
 
     @Test
     void clampsWindowBetweenZeroAndMax() {
-        when(taskRepository.findTodayTasks(1L, TODAY)).thenReturn(List.of());
-        when(taskRepository.findTodayTasks(1L, TODAY.plusDays(60))).thenReturn(List.of());
+        when(taskRepository.findTodayTasks(1L, TODAY, false)).thenReturn(List.of());
+        when(taskRepository.findTodayTasks(1L, TODAY.plusDays(60), false)).thenReturn(List.of());
 
-        todayService.build(TODAY, -5);
-        todayService.build(TODAY, 999);
+        todayService.build(TODAY, -5, false);
+        todayService.build(TODAY, 999, false);
 
-        verify(taskRepository).findTodayTasks(1L, TODAY);
-        verify(taskRepository).findTodayTasks(1L, TODAY.plusDays(60));
+        verify(taskRepository).findTodayTasks(1L, TODAY, false);
+        verify(taskRepository).findTodayTasks(1L, TODAY.plusDays(60), false);
     }
 
     @Test
     void returnsEmptyResponseWhenNothingIsPending() {
-        when(taskRepository.findTodayTasks(1L, TODAY.plusDays(7))).thenReturn(List.of());
+        when(taskRepository.findTodayTasks(1L, TODAY.plusDays(7), false)).thenReturn(List.of());
 
-        TodayResponse response = todayService.build(TODAY, null);
+        TodayResponse response = todayService.build(TODAY, null, false);
 
         assertThat(response.tasks()).isEmpty();
         assertThat(response.overdueCount()).isZero();
         assertThat(response.todayCount()).isZero();
         assertThat(response.upcomingCount()).isZero();
+    }
+
+    @Test
+    void passesThroughIncluirHechasToRepository() {
+        when(taskRepository.findTodayTasks(1L, TODAY.plusDays(7), true)).thenReturn(List.of(
+                view(1, TODAY, TaskStatus.DONE, "1.00")
+        ));
+
+        TodayResponse response = todayService.getToday(null, true);
+
+        verify(taskRepository).findTodayTasks(1L, TODAY.plusDays(7), true);
+        assertThat(response.tasks()).hasSize(1);
+        assertThat(response.tasks().get(0).status()).isEqualTo(TaskStatus.DONE);
+    }
+
+    @Test
+    void mapsDescriptionAndTimeRangeWhenPresent() {
+        FakeView withDetails = new FakeView(
+                5L, "Reservar salón", "Confirmar aforo", TaskStatus.PENDING,
+                new BigDecimal("2.00"), TODAY, LocalTime.of(9, 0), LocalTime.of(11, 0));
+        when(taskRepository.findTodayTasks(1L, TODAY.plusDays(7), false)).thenReturn(List.of(withDetails));
+
+        TodayResponse response = todayService.build(TODAY, null, false);
+
+        var task = response.tasks().get(0);
+        assertThat(task.description()).isEqualTo("Confirmar aforo");
+        assertThat(task.startTime()).isEqualTo(LocalTime.of(9, 0));
+        assertThat(task.endTime()).isEqualTo(LocalTime.of(11, 0));
     }
 }
