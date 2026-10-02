@@ -179,7 +179,7 @@ class TodayServiceTest {
                 view(1, TODAY, TaskStatus.DONE, "1.00")
         ));
 
-        TodayResponse response = todayService.getToday(null, true);
+        TodayResponse response = todayService.build(TODAY, null, true);
 
         verify(taskRepository).findTodayTasks(1L, TODAY.plusDays(7), true);
         assertThat(response.tasks()).hasSize(1);

@@ -38,6 +38,7 @@ public class AuthController {
     }
 
     @Operation(summary = "Iniciar sesión con correo y contraseña")
+    @ApiResponse(responseCode = "200", description = "Sesión iniciada")
     @ApiResponse(responseCode = "401", description = "Correo o contraseña incorrectos")
     @SecurityRequirements
     @PostMapping("/login")
@@ -46,6 +47,8 @@ public class AuthController {
     }
 
     @Operation(summary = "Obtener el usuario del token actual")
+    @ApiResponse(responseCode = "200", description = "Usuario del token")
+    @ApiResponse(responseCode = "401", description = "Sin token, token inválido o vencido, o el usuario ya no existe")
     @GetMapping("/me")
     public UserResponse me() {
         return authService.me();
