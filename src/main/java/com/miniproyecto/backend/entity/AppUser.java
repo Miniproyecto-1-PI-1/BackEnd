@@ -33,6 +33,9 @@ public class AppUser {
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
+    @Column(columnDefinition = "text")
+    private String avatar;
+
     @Column(name = "daily_hour_limit", nullable = false)
     private Integer dailyHourLimit = 6;
 

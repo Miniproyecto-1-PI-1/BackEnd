@@ -16,8 +16,7 @@ public class CorsConfig {
                 registry.addMapping("/api/**")
                         .allowedOrigins(
                                 "http://localhost:5173",
-                                "https://mini-proyecto-1-pi-1.inmemorialake.dev",
-                                "https://magenta-gumdrop-40d40f.netlify.app"
+                                "https://mini-proyecto-1-pi-1.inmemorialake.dev"
                         )
                         .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
             }

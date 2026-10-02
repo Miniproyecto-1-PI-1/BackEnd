@@ -45,6 +45,9 @@ public class Event {
     @Column(nullable = false)
     private String name;
 
+    @Column(length = 50)
+    private String type;
+
     @Column(columnDefinition = "text")
     private String description;
 

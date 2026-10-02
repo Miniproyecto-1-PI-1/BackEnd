@@ -13,6 +13,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     Optional<Event> findByIdAndUser_Id(Long id, Long userId);
 
+    List<Event> findByUser_Id(Long userId);
+
     @Query("""
             SELECT DISTINCT e
             FROM Event e
@@ -25,6 +27,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     @Query("""
             SELECT e.id AS id,
                    e.name AS name,
+                   e.type AS type,
                    e.eventDate AS date,
                    c.name AS clientName,
                    COUNT(t.id) AS totalTasks,
@@ -34,7 +37,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             LEFT JOIN e.tasks t
             WHERE e.user.id = :userId
               AND (:q IS NULL OR :q = '' OR LOWER(e.name) LIKE LOWER(CONCAT('%', :q, '%')))
-            GROUP BY e.id, e.name, e.eventDate, c.name, e.createdAt
+            GROUP BY e.id, e.name, e.type, e.eventDate, c.name, e.createdAt
             ORDER BY e.createdAt DESC
             """)
     List<EventSummaryView> findSummariesByUserId(@Param("userId") Long userId, @Param("q") String q);
@@ -43,6 +46,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
         Long getId();
 
         String getName();
+
+        String getType();
 
         LocalDate getDate();
 

@@ -8,4 +8,6 @@ import java.util.Optional;
 public interface ClientRepository extends JpaRepository<Client, Long> {
 
     Optional<Client> findByUser_IdAndNameIgnoreCase(Long userId, String name);
+
+    void deleteByUser_Id(Long userId);
 }
