@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 public interface TaskRepository extends JpaRepository<Task, Long> {
@@ -15,9 +16,12 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     @Query("""
             SELECT t.id AS id,
                    t.name AS name,
+                   t.description AS description,
                    t.status AS status,
                    t.estimatedHours AS estimatedHours,
                    t.dueDate AS date,
+                   t.startTime AS startTime,
+                   t.endTime AS endTime,
                    e.id AS eventId,
                    e.name AS eventName,
                    c.name AS clientName
@@ -25,18 +29,24 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
             JOIN t.event e
             LEFT JOIN e.client c
             WHERE e.user.id = :userId
-              AND t.status <> com.miniproyecto.backend.entity.TaskStatus.DONE
+              AND (:incluirHechas = true OR t.status <> com.miniproyecto.backend.entity.TaskStatus.DONE)
               AND t.dueDate <= :limit
             ORDER BY t.dueDate ASC, t.estimatedHours ASC, t.id ASC
             """)
-    List<TaskTodayView> findTodayTasks(@Param("userId") Long userId, @Param("limit") LocalDate limit);
+    List<TaskTodayView> findTodayTasks(
+            @Param("userId") Long userId,
+            @Param("limit") LocalDate limit,
+            @Param("incluirHechas") boolean incluirHechas);
 
     interface TaskTodayView {
         Long getId();
         String getName();
+        String getDescription();
         TaskStatus getStatus();
         BigDecimal getEstimatedHours();
         LocalDate getDate();
+        LocalTime getStartTime();
+        LocalTime getEndTime();
         Long getEventId();
         String getEventName();
         String getClientName();

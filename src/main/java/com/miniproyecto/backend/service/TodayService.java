@@ -26,17 +26,17 @@ public class TodayService {
     }
 
     @Transactional(readOnly = true)
-    public TodayResponse getToday(Integer days) {
-        return build(LocalDate.now(), days);
+    public TodayResponse getToday(Integer days, Boolean incluirHechas) {
+        return build(LocalDate.now(), days, Boolean.TRUE.equals(incluirHechas));
     }
 
-    TodayResponse build(LocalDate today, Integer days) {
+    TodayResponse build(LocalDate today, Integer days, boolean incluirHechas) {
         int window = days == null
                 ? DEFAULT_UPCOMING_DAYS
                 : Math.max(0, Math.min(days, MAX_UPCOMING_DAYS));
 
         List<TodayTaskResponse> tasks = taskRepository
-                .findTodayTasks(CurrentUser.id(), today.plusDays(window))
+                .findTodayTasks(CurrentUser.id(), today.plusDays(window), incluirHechas)
                 .stream()
                 .map(view -> toResponse(view, today))
                 .toList();
@@ -62,9 +62,12 @@ public class TodayService {
         return new TodayTaskResponse(
                 view.getId(),
                 view.getName(),
+                view.getDescription(),
                 view.getStatus(),
                 view.getEstimatedHours(),
                 view.getDate(),
+                view.getStartTime(),
+                view.getEndTime(),
                 category,
                 diff,
                 view.getEventId(),

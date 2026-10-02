@@ -58,6 +58,9 @@ Todas las rutas aceptan también la barra final (`/api/events/`).
 | `POST` | `/api/events/{id}/tasks` | 201, evento actualizado |
 | `PUT` | `/api/events/{id}/tasks/{taskId}` | 200, evento actualizado |
 | `DELETE` | `/api/events/{id}/tasks/{taskId}` | 204 |
+| `GET` | `/api/today?days=&incluirHechas=` | 200, gestiones vencidas/de hoy/próximas del usuario, en orden de prioridad |
+
+`GET /api/today` reúne en una sola lista las gestiones no ejecutadas de todos los eventos del usuario, clasificadas en `OVERDUE` (vencidas), `TODAY` (hoy) o `UPCOMING` (próximas dentro de la ventana), ordenadas por fecha límite y, en caso de empate, por menor esfuerzo estimado. `days` (por defecto 7, máximo 60) define hasta cuántos días a futuro se incluyen en `UPCOMING`; valores fuera de rango se ajustan al límite más cercano. `incluirHechas=true` agrega también las gestiones con estado `DONE`, excluidas por defecto.
 
 Todos los errores (400, 401, 404, 405, 409, 500) tienen la misma forma:
 
