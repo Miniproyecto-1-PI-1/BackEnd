@@ -19,6 +19,7 @@ public record TodayTaskResponse(
         long daysFromToday,      // negativo = días de atraso
         Long eventId,
         String eventName,
+        LocalDate eventDate,
         String clientName
 ) {
 }

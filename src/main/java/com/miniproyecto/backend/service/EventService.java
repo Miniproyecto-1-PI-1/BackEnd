@@ -12,6 +12,7 @@ import com.miniproyecto.backend.entity.Client;
 import com.miniproyecto.backend.entity.Event;
 import com.miniproyecto.backend.entity.Task;
 import com.miniproyecto.backend.entity.TaskStatus;
+import com.miniproyecto.backend.exception.FieldErrorException;
 import com.miniproyecto.backend.exception.NotFoundException;
 import com.miniproyecto.backend.repository.AppUserRepository;
 import com.miniproyecto.backend.repository.EventRepository;
@@ -35,15 +36,18 @@ public class EventService {
     private final EventRepository eventRepository;
     private final AppUserRepository appUserRepository;
     private final ClientService clientService;
+    private final DailyCapacityService capacityService;
 
     public EventService(
             EventRepository eventRepository,
             AppUserRepository appUserRepository,
-            ClientService clientService
+            ClientService clientService,
+            DailyCapacityService capacityService
     ) {
         this.eventRepository = eventRepository;
         this.appUserRepository = appUserRepository;
         this.clientService = clientService;
+        this.capacityService = capacityService;
     }
 
     @Transactional
@@ -69,6 +73,9 @@ public class EventService {
                 task.setEvent(event);
                 event.getTasks().add(task);
             }
+            capacityService.ensureNewEventFits(user.getId(), event.getTasks().stream()
+                    .map(task -> new DailyCapacityService.PlannedTask(task.getDueDate(), task.getEstimatedHours()))
+                    .toList());
         }
 
         return toDetail(eventRepository.save(event));
@@ -122,6 +129,8 @@ public class EventService {
     public EventDetailResponse addTask(Long eventId, TaskRequest request) {
         Event event = findOwnedEvent(eventId);
         Task task = toTask(request);
+        capacityService.ensureFits(CurrentUser.id(), LocalDate.now(), task.getDueDate(), task.getEstimatedHours(),
+                null, event.getEventDate());
         task.setEvent(event);
         event.getTasks().add(task);
         return toDetail(eventRepository.save(event));
@@ -131,17 +140,32 @@ public class EventService {
     public EventDetailResponse updateTask(Long eventId, Long taskId, TaskRequest request) {
         Event event = findOwnedEvent(eventId);
         Task task = findTask(event, taskId);
+
+        LocalDate today = LocalDate.now();
+        LocalDate newDate = request.dueDate() != null ? request.dueDate() : task.getDueDate();
+        BigDecimal newHours = estimatedHours(request);
+        TaskStatus newStatus = request.status() != null ? request.status() : task.getStatus();
+        boolean dateChanged = !newDate.equals(task.getDueDate());
+        boolean hoursChanged = newHours.compareTo(task.getEstimatedHours()) != 0;
+        boolean reopened = task.getStatus() == TaskStatus.DONE && newStatus != TaskStatus.DONE;
+
+        if (dateChanged && newDate.isBefore(today)) {
+            throw new FieldErrorException("dueDate", "La fecha límite no puede ser anterior al día de hoy.");
+        }
+        if (dateChanged && event.getEventDate() != null && newDate.isAfter(event.getEventDate())) {
+            throw new FieldErrorException("dueDate", "La fecha límite no puede ser posterior al evento.");
+        }
+        if (newStatus != TaskStatus.DONE && (dateChanged || hoursChanged || reopened)) {
+            capacityService.ensureFits(CurrentUser.id(), today, newDate, newHours, task.getId(), event.getEventDate());
+        }
+
         task.setName(request.name().trim());
         task.setDescription(request.description());
-        if (request.dueDate() != null) {
-            task.setDueDate(request.dueDate());
-        }
+        task.setDueDate(newDate);
         task.setStartTime(request.startTime());
         task.setEndTime(request.endTime());
-        task.setEstimatedHours(estimatedHours(request));
-        if (request.status() != null) {
-            task.setStatus(request.status());
-        }
+        task.setEstimatedHours(newHours);
+        task.setStatus(newStatus);
         return toDetail(eventRepository.save(event));
     }
 

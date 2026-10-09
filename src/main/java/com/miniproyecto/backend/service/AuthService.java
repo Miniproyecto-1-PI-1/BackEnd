@@ -74,7 +74,7 @@ public class AuthService {
     }
 
     static UserResponse toUserResponse(AppUser user) {
-        return new UserResponse(user.getId(), user.getName(), user.getEmail(), user.getAvatar());
+        return new UserResponse(user.getId(), user.getName(), user.getEmail(), user.getAvatar(), user.getDailyHourLimit());
     }
 
     static String normalizeEmail(String email) {

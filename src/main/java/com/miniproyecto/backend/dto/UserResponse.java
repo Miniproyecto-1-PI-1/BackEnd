@@ -4,6 +4,7 @@ public record UserResponse(
         Long id,
         String name,
         String email,
-        String avatar
+        String avatar,
+        Integer dailyLimitHours
 ) {
 }

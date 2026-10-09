@@ -1,5 +1,6 @@
 package com.miniproyecto.backend.exception;
 
+import com.miniproyecto.backend.dto.OverloadConflictResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -54,6 +55,25 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ApiErrorResponse> handleConflict(ConflictException ex) {
         return build(HttpStatus.CONFLICT, "Conflicto", ex.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(OverloadConflictException.class)
+    public ResponseEntity<OverloadConflictResponse> handleOverload(OverloadConflictException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new OverloadConflictResponse(
+                HttpStatus.CONFLICT.value(),
+                "Conflicto de sobrecarga",
+                ex.getMessage(),
+                Map.of("dueDate", ex.getMessage()),
+                new OverloadConflictResponse.Overload(
+                        ex.getDate(),
+                        ex.getPlannedHours(),
+                        ex.getTaskHours(),
+                        ex.getResultingHours(),
+                        ex.getLimitHours(),
+                        ex.getExceedsBy(),
+                        ex.getAvailableHours(),
+                        ex.getSuggestedDates())
+        ));
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
