@@ -4,7 +4,9 @@ import com.miniproyecto.backend.dto.ClientResponse;
 import com.miniproyecto.backend.dto.EventDetailResponse;
 import com.miniproyecto.backend.exception.GlobalExceptionHandler;
 import com.miniproyecto.backend.exception.NotFoundException;
+import com.miniproyecto.backend.exception.OverloadConflictException;
 import com.miniproyecto.backend.service.EventService;
+import com.miniproyecto.backend.service.TaskRescheduleService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +19,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
@@ -28,6 +31,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -40,6 +44,9 @@ class EventControllerTest {
     @Mock
     private EventService eventService;
 
+    @Mock
+    private TaskRescheduleService taskRescheduleService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -47,7 +54,7 @@ class EventControllerTest {
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
         JsonMapper jsonMapper = JsonMapper.builder().build();
-        mockMvc = MockMvcBuilders.standaloneSetup(new EventController(eventService))
+        mockMvc = MockMvcBuilders.standaloneSetup(new EventController(eventService, taskRescheduleService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)
                 .setMessageConverters(new JacksonJsonHttpMessageConverter(jsonMapper))
@@ -234,5 +241,35 @@ class EventControllerTest {
     private static EventDetailResponse emptyEvent() {
         return new EventDetailResponse(15L, "Fiesta de prueba", "Social", null, LocalDate.of(2026, 12, 5),
                 LocalTime.of(18, 0), "Salón Central", null, List.of(), 0, 0, 0);
+    }
+
+    @Test
+    void reschedule_withoutDate_returns400() throws Exception {
+        mockMvc.perform(patch("/api/events/5/tasks/9/reschedule")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.dueDate").exists());
+
+        verify(taskRescheduleService, never()).reschedule(any(), any(), any());
+    }
+
+    @Test
+    void reschedule_overload_returns409WithFigures() throws Exception {
+        when(taskRescheduleService.reschedule(eq(5L), eq(9L), any())).thenThrow(new OverloadConflictException(
+                LocalDate.of(2026, 10, 8), new BigDecimal("4.00"), new BigDecimal("3.00"),
+                new BigDecimal("7.00"), 6, List.of(LocalDate.of(2026, 10, 10))));
+
+        mockMvc.perform(patch("/api/events/5/tasks/9/reschedule")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"dueDate\": \"2026-10-08\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("overload_conflict"))
+                .andExpect(jsonPath("$.detail").value("Quedarías con 7h planificadas ese día (tu límite es 6h)."))
+                .andExpect(jsonPath("$.resultingHours").value(7.0))
+                .andExpect(jsonPath("$.limitHours").value(6))
+                .andExpect(jsonPath("$.exceedsBy").value(1.0))
+                .andExpect(jsonPath("$.availableHours").value(2.0))
+                .andExpect(jsonPath("$.suggestedDates[0]").value("2026-10-10"));
     }
 }

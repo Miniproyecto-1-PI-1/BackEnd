@@ -38,6 +38,40 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
             @Param("limit") LocalDate limit,
             @Param("incluirHechas") boolean incluirHechas);
 
+    /** Horas ya planificadas (no hechas) de un día, sin contar la gestión {@code excludeId}; null si no hay. */
+    @Query("""
+            SELECT SUM(t.estimatedHours)
+            FROM Task t JOIN t.event e
+            WHERE e.user.id = :userId
+              AND t.dueDate = :date
+              AND t.status <> com.miniproyecto.backend.entity.TaskStatus.DONE
+              AND t.id <> :excludeId
+            """)
+    BigDecimal sumPlannedHours(
+            @Param("userId") Long userId,
+            @Param("date") LocalDate date,
+            @Param("excludeId") Long excludeId);
+
+    @Query("""
+            SELECT t.dueDate AS date, SUM(t.estimatedHours) AS hours
+            FROM Task t JOIN t.event e
+            WHERE e.user.id = :userId
+              AND t.dueDate BETWEEN :from AND :to
+              AND t.status <> com.miniproyecto.backend.entity.TaskStatus.DONE
+              AND t.id <> :excludeId
+            GROUP BY t.dueDate
+            """)
+    List<DayLoad> sumPlannedHoursByDate(
+            @Param("userId") Long userId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to,
+            @Param("excludeId") Long excludeId);
+
+    interface DayLoad {
+        LocalDate getDate();
+        BigDecimal getHours();
+    }
+
     interface TaskTodayView {
         Long getId();
         String getName();

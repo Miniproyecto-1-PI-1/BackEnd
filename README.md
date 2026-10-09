@@ -57,8 +57,11 @@ Todas las rutas aceptan también la barra final (`/api/events/`).
 | `DELETE` | `/api/events/{id}` | 204, borra el evento y sus gestiones |
 | `POST` | `/api/events/{id}/tasks` | 201, evento actualizado |
 | `PUT` | `/api/events/{id}/tasks/{taskId}` | 200, evento actualizado |
+| `PATCH` | `/api/events/{id}/tasks/{taskId}/reschedule` | 200, la gestión con su grupo de `/hoy` recalculado; 409 si hay sobrecarga |
 | `DELETE` | `/api/events/{id}/tasks/{taskId}` | 204 |
 | `GET` | `/api/today?days=&incluirHechas=` | 200, gestiones vencidas/de hoy/próximas del usuario, en orden de prioridad |
+
+`PATCH .../reschedule` recibe `{ "dueDate": "2026-10-10", "estimatedHours": 2 }` (`estimatedHours` es opcional). Valida que la fecha no sea anterior a hoy ni posterior al evento, guarda el cambio, marca la gestión como `POSTPONED` y devuelve la gestión en el mismo formato de `/api/today` (con su `category` ya recalculada). Si el día elegido quedaría por encima del límite diario del usuario responde **409** con `code: "overload_conflict"`, un `detail` con las cifras («Quedarías con 7h planificadas ese día (tu límite es 6h).»), los campos `plannedHours`, `taskHours`, `resultingHours`, `limitHours`, `exceedsBy` (excedente), `availableHours` (horas que sí caben ese día) y hasta tres `suggestedDates` donde sí cabe. El conflicto se resuelve repitiendo la petición con otra fecha o con menos `estimatedHours`; no se guarda nada mientras haya sobrecarga.
 
 `GET /api/today` reúne en una sola lista las gestiones no ejecutadas de todos los eventos del usuario, clasificadas en `OVERDUE` (vencidas), `TODAY` (hoy) o `UPCOMING` (próximas dentro de la ventana), ordenadas por fecha límite y, en caso de empate, por menor esfuerzo estimado. `days` (por defecto 7, máximo 60) define hasta cuántos días a futuro se incluyen en `UPCOMING`; valores fuera de rango se ajustan al límite más cercano. `incluirHechas=true` agrega también las gestiones con estado `DONE`, excluidas por defecto.
 
