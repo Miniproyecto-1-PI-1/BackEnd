@@ -32,6 +32,8 @@ public class UserController {
     }
 
     @Operation(summary = "Editar nombre y correo (cambiar el correo exige la contraseña actual)")
+    @ApiResponse(responseCode = "200", description = "Usuario actualizado")
+    @ApiResponse(responseCode = "400", description = "Campos inválidos, o falta currentPassword / no es correcta al cambiar el correo")
     @ApiResponse(responseCode = "409", description = "El correo ya está registrado")
     @PutMapping
     public UserResponse updateProfile(@Valid @RequestBody UpdateProfileRequest request) {
@@ -40,6 +42,7 @@ public class UserController {
 
     @Operation(summary = "Cambiar la contraseña indicando la actual")
     @ApiResponse(responseCode = "204", description = "Contraseña actualizada")
+    @ApiResponse(responseCode = "400", description = "Campos inválidos, contraseña actual incorrecta o nueva igual a la actual")
     @PutMapping("/password")
     public ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
         userService.changePassword(request);
@@ -47,6 +50,8 @@ public class UserController {
     }
 
     @Operation(summary = "Subir la foto de perfil como data URL (JPG, PNG o WebP)")
+    @ApiResponse(responseCode = "200", description = "Usuario con la nueva foto")
+    @ApiResponse(responseCode = "400", description = "Imagen vacía, demasiado grande (más de 400 000 caracteres) o con formato no admitido")
     @PutMapping("/avatar")
     public UserResponse updateAvatar(@Valid @RequestBody AvatarRequest request) {
         return userService.updateAvatar(request);
@@ -67,6 +72,7 @@ public class UserController {
 
     @Operation(summary = "Eliminar la cuenta con todos sus eventos, gestiones y clientes")
     @ApiResponse(responseCode = "204", description = "Cuenta eliminada")
+    @ApiResponse(responseCode = "400", description = "Falta la contraseña o no es correcta")
     @DeleteMapping
     public ResponseEntity<Void> deleteAccount(@Valid @RequestBody DeleteAccountRequest request) {
         userService.deleteAccount(request);
