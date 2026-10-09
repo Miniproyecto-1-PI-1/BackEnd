@@ -23,12 +23,21 @@ import org.springframework.web.method.HandlerMethod;
 
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Configuration
 public class OpenApiConfig {
 
     private static final String ERROR_SCHEMA = "ApiErrorResponse";
     private static final String OVERLOAD_SCHEMA = "OverloadConflictResponse";
+    /** Un ejemplo por código, con los textos que devuelven GlobalExceptionHandler y el entry point de seguridad. */
+    private static final Map<String, Map<String, Object>> ERROR_EXAMPLES = Map.of(
+            "400", errorExample(400, "Solicitud inválida", "Revisa los campos marcados",
+                    Map.of("name", "El nombre es obligatorio.")),
+            "401", errorExample(401, "No autenticado", "Inicia sesión para continuar", Map.of()),
+            "404", errorExample(404, "Recurso no encontrado", "Evento no encontrado", Map.of()),
+            "409", errorExample(409, "Conflicto", "Ese correo ya está registrado", Map.of()));
     private static final String BEARER = "bearerAuth";
 
     @Bean
@@ -52,7 +61,8 @@ public class OpenApiConfig {
     /**
      * Completa las respuestas de error que devuelven GlobalExceptionHandler y el entry point de seguridad:
      * 400 si hay body, path o query params; 401 si la ruta exige token; 404 si hay id.
-     * No pisa las descripciones declaradas con @ApiResponse; a todo 4xx/5xx le pone el esquema ApiErrorResponse,
+     * No pisa las descripciones declaradas con @ApiResponse; a todo 4xx/5xx le pone el esquema ApiErrorResponse
+     * con un ejemplo propio de su código,
      * salvo al 409 que declara OverloadConflictResponse.
      */
     @Bean
@@ -76,7 +86,7 @@ public class OpenApiConfig {
             }
             responses.forEach((code, response) -> {
                 if ((code.startsWith("4") || code.startsWith("5")) && !hasOwnErrorSchema(response)) {
-                    response.setContent(errorContent());
+                    response.setContent(errorContent(code));
                 }
             });
             return operation;
@@ -95,8 +105,17 @@ public class OpenApiConfig {
                         && schema.get$ref().endsWith("/" + OVERLOAD_SCHEMA));
     }
 
-    private static Content errorContent() {
+    private static Content errorContent(String code) {
         Schema<?> ref = new Schema<>().$ref("#/components/schemas/" + ERROR_SCHEMA);
-        return new Content().addMediaType("application/json", new MediaType().schema(ref));
+        return new Content().addMediaType("application/json", new MediaType().schema(ref).example(ERROR_EXAMPLES.get(code)));
+    }
+
+    private static Map<String, Object> errorExample(int status, String title, String detail, Map<String, String> errors) {
+        Map<String, Object> example = new LinkedHashMap<>();
+        example.put("status", status);
+        example.put("title", title);
+        example.put("detail", detail);
+        example.put("errors", errors);
+        return example;
     }
 }
