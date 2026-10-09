@@ -23,18 +23,13 @@ public class OverloadConflictException extends RuntimeException {
             int limitHours,
             List<SuggestedDate> suggestedDates
     ) {
-        super("Quedarías con " + format(resultingHours) + "h planificadas ese día (tu límite es "
-                + limitHours + "h).");
+        super("Ese día superaría tu límite diario de horas.");
         this.date = date;
         this.plannedHours = plannedHours;
         this.taskHours = taskHours;
         this.resultingHours = resultingHours;
         this.limitHours = limitHours;
         this.suggestedDates = suggestedDates;
-    }
-
-    private static String format(BigDecimal hours) {
-        return hours.stripTrailingZeros().toPlainString();
     }
 
     public BigDecimal getExceedsBy() {
