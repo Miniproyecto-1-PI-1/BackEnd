@@ -109,6 +109,11 @@ class TodayServiceTest {
         }
 
         @Override
+        public LocalDate getEventDate() {
+            return LocalDate.of(2026, 12, 5);
+        }
+
+        @Override
         public String getClientName() {
             return "Ana";
         }
@@ -199,5 +204,15 @@ class TodayServiceTest {
         assertThat(task.description()).isEqualTo("Confirmar aforo");
         assertThat(task.startTime()).isEqualTo(LocalTime.of(9, 0));
         assertThat(task.endTime()).isEqualTo(LocalTime.of(11, 0));
+    }
+
+    @Test
+    void includesTheEventDateSoTheClientCanBoundReprogramming() {
+        when(taskRepository.findTodayTasks(1L, TODAY.plusDays(7), false))
+                .thenReturn(List.of(view(1, TODAY, TaskStatus.PENDING, "1.00")));
+
+        TodayResponse response = todayService.build(TODAY, null, false);
+
+        assertThat(response.tasks().get(0).eventDate()).isEqualTo(LocalDate.of(2026, 12, 5));
     }
 }

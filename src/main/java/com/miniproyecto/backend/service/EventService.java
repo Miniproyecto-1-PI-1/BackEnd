@@ -152,6 +152,9 @@ public class EventService {
         if (dateChanged && newDate.isBefore(today)) {
             throw new FieldErrorException("dueDate", "La fecha límite no puede ser anterior al día de hoy.");
         }
+        if (dateChanged && event.getEventDate() != null && newDate.isAfter(event.getEventDate())) {
+            throw new FieldErrorException("dueDate", "La fecha límite no puede ser posterior al evento.");
+        }
         if (newStatus != TaskStatus.DONE && (dateChanged || hoursChanged || reopened)) {
             capacityService.ensureFits(CurrentUser.id(), today, newDate, newHours, task.getId(), event.getEventDate());
         }

@@ -301,6 +301,22 @@ class EventServiceTest {
     }
 
     @Test
+    void updateTask_rejectsMovingAfterTheEventDate() {
+        Event event = event(10L);
+        event.setEventDate(LocalDate.of(2026, 12, 5));
+        Task existing = existingTask(event, 5L);
+        existing.setDueDate(LocalDate.of(2026, 11, 19));
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        TaskRequest late = new TaskRequest("X", null, LocalDate.of(2026, 12, 6), null, null, new BigDecimal("1"), null);
+
+        assertThatThrownBy(() -> eventService.updateTask(10L, 5L, late))
+                .isInstanceOfSatisfying(FieldErrorException.class,
+                        ex -> assertThat(ex.getErrors().get("dueDate")).contains("posterior al evento"));
+
+        verify(capacityService, never()).ensureFits(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     void updateTask_rejectsMovingToAPastDate() {
         Event event = event(10L);
         Task existing = existingTask(event, 5L);
