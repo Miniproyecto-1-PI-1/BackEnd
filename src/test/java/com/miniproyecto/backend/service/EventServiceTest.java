@@ -10,7 +10,9 @@ import com.miniproyecto.backend.entity.Client;
 import com.miniproyecto.backend.entity.Event;
 import com.miniproyecto.backend.entity.Task;
 import com.miniproyecto.backend.entity.TaskStatus;
+import com.miniproyecto.backend.exception.FieldErrorException;
 import com.miniproyecto.backend.exception.NotFoundException;
+import com.miniproyecto.backend.exception.OverloadConflictException;
 import com.miniproyecto.backend.repository.AppUserRepository;
 import com.miniproyecto.backend.repository.EventRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -34,6 +36,11 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -48,6 +55,9 @@ class EventServiceTest {
 
     @Mock
     private ClientService clientService;
+
+    @Mock
+    private DailyCapacityService capacityService;
 
     @InjectMocks
     private EventService eventService;
@@ -163,6 +173,149 @@ class EventServiceTest {
     }
 
     @Test
+    void addTask_checksTheDailyCapacityOfItsDate() {
+        Event event = event(10L);
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        when(eventRepository.save(event)).thenReturn(event);
+
+        eventService.addTask(10L, task("Contratar DJ", new BigDecimal("2.5"), null));
+
+        verify(capacityService).ensureFits(eq(1L), any(LocalDate.class), eq(LocalDate.of(2026, 11, 20)),
+                eq(new BigDecimal("2.50")), isNull(), any());
+    }
+
+    @Test
+    void addTask_overload_doesNotSaveAnything() {
+        Event event = event(10L);
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        doThrow(overload()).when(capacityService).ensureFits(any(), any(), any(), any(), any(), any());
+
+        assertThatThrownBy(() -> eventService.addTask(10L, task("Contratar DJ", new BigDecimal("4"), null)))
+                .isInstanceOf(OverloadConflictException.class);
+
+        assertThat(event.getTasks()).isEmpty();
+        verify(eventRepository, never()).save(any(Event.class));
+    }
+
+    @Test
+    void create_checksAllTasksTogether() {
+        stubCreatePersistence();
+        when(clientService.findOrCreate(user, null)).thenReturn(null);
+        TaskRequest a = new TaskRequest("A", null, LocalDate.of(2026, 11, 20), null, null, new BigDecimal("3"), null);
+        TaskRequest b = new TaskRequest("B", null, LocalDate.of(2026, 11, 20), null, null, new BigDecimal("4"), null);
+
+        eventService.create(request(null, List.of(a, b)));
+
+        verify(capacityService).ensureNewEventFits(eq(1L), argThat(planned -> planned.size() == 2
+                && planned.stream().allMatch(p -> p.date().equals(LocalDate.of(2026, 11, 20)))));
+    }
+
+    @Test
+    void create_overload_doesNotSaveTheEvent() {
+        when(appUserRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(clientService.findOrCreate(user, null)).thenReturn(null);
+        doThrow(overload()).when(capacityService).ensureNewEventFits(any(), any());
+        TaskRequest a = new TaskRequest("A", null, LocalDate.of(2026, 11, 20), null, null, new BigDecimal("8"), null);
+
+        assertThatThrownBy(() -> eventService.create(request(null, List.of(a))))
+                .isInstanceOf(OverloadConflictException.class);
+
+        verify(eventRepository, never()).save(any(Event.class));
+    }
+
+    @Test
+    void updateTask_changingTheDateChecksCapacityExcludingItself() {
+        Event event = event(10L);
+        Task existing = existingTask(event, 5L);
+        existing.setDueDate(LocalDate.of(2026, 11, 19));
+        existing.setEstimatedHours(new BigDecimal("3.00"));
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        when(eventRepository.save(event)).thenReturn(event);
+
+        eventService.updateTask(10L, 5L, task("Confirmar menú", new BigDecimal("3"), TaskStatus.POSTPONED));
+
+        verify(capacityService).ensureFits(eq(1L), any(LocalDate.class), eq(LocalDate.of(2026, 11, 20)),
+                eq(new BigDecimal("3.00")), eq(5L), any());
+        assertThat(existing.getDueDate()).isEqualTo(LocalDate.of(2026, 11, 20));
+        assertThat(existing.getStatus()).isEqualTo(TaskStatus.POSTPONED);
+    }
+
+    @Test
+    void updateTask_overload_leavesTheTaskUntouched() {
+        Event event = event(10L);
+        Task existing = existingTask(event, 5L);
+        existing.setDueDate(LocalDate.of(2026, 11, 19));
+        existing.setEstimatedHours(new BigDecimal("3.00"));
+        String originalName = existing.getName();
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        doThrow(overload()).when(capacityService).ensureFits(any(), any(), any(), any(), any(), any());
+
+        assertThatThrownBy(() -> eventService.updateTask(10L, 5L, task("Otro nombre", new BigDecimal("3"), null)))
+                .isInstanceOf(OverloadConflictException.class);
+
+        assertThat(existing.getDueDate()).isEqualTo(LocalDate.of(2026, 11, 19));
+        assertThat(existing.getName()).isEqualTo(originalName);
+        verify(eventRepository, never()).save(any(Event.class));
+    }
+
+    @Test
+    void updateTask_withSameDateAndHoursSkipsTheCapacityCheck() {
+        Event event = event(10L);
+        Task existing = existingTask(event, 5L);
+        existing.setDueDate(LocalDate.of(2026, 11, 20));
+        existing.setEstimatedHours(new BigDecimal("3.00"));
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        when(eventRepository.save(event)).thenReturn(event);
+
+        eventService.updateTask(10L, 5L, task("Solo cambia el nombre", new BigDecimal("3"), null));
+
+        verify(capacityService, never()).ensureFits(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void updateTask_markingDoneSkipsTheCapacityCheck() {
+        Event event = event(10L);
+        Task existing = existingTask(event, 5L);
+        existing.setDueDate(LocalDate.of(2026, 11, 19));
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        when(eventRepository.save(event)).thenReturn(event);
+
+        eventService.updateTask(10L, 5L, task("Confirmar menú", new BigDecimal("3"), TaskStatus.DONE));
+
+        verify(capacityService, never()).ensureFits(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void updateTask_reopeningADoneTaskChecksCapacity() {
+        Event event = event(10L);
+        Task existing = existingTask(event, 5L);
+        existing.setStatus(TaskStatus.DONE);
+        existing.setDueDate(LocalDate.of(2026, 11, 20));
+        existing.setEstimatedHours(new BigDecimal("3.00"));
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        when(eventRepository.save(event)).thenReturn(event);
+
+        eventService.updateTask(10L, 5L, task("Confirmar menú", new BigDecimal("3"), TaskStatus.PENDING));
+
+        verify(capacityService).ensureFits(any(), any(), any(), any(), eq(5L), any());
+    }
+
+    @Test
+    void updateTask_rejectsMovingToAPastDate() {
+        Event event = event(10L);
+        Task existing = existingTask(event, 5L);
+        existing.setDueDate(LocalDate.of(2026, 11, 19));
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        TaskRequest past = new TaskRequest("X", null, LocalDate.of(2020, 1, 1), null, null, new BigDecimal("1"), null);
+
+        assertThatThrownBy(() -> eventService.updateTask(10L, 5L, past))
+                .isInstanceOfSatisfying(FieldErrorException.class,
+                        ex -> assertThat(ex.getErrors()).containsKey("dueDate"));
+
+        verify(capacityService, never()).ensureFits(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     void deleteTask_removesTaskFromEvent() {
         Event event = event(10L);
         existingTask(event, 5L);
@@ -267,6 +420,11 @@ class EventServiceTest {
         task.setStatus(TaskStatus.PENDING);
         event.getTasks().add(task);
         return task;
+    }
+
+    private static OverloadConflictException overload() {
+        return new OverloadConflictException(LocalDate.of(2026, 11, 20), new BigDecimal("5.00"),
+                new BigDecimal("4.00"), new BigDecimal("9.00"), 6, List.of());
     }
 
     private static TaskRequest task(String name, BigDecimal hours, TaskStatus status) {

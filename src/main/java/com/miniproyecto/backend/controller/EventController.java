@@ -3,10 +3,7 @@ package com.miniproyecto.backend.controller;
 import com.miniproyecto.backend.dto.CreateEventRequest;
 import com.miniproyecto.backend.dto.EventDetailResponse;
 import com.miniproyecto.backend.dto.EventSummaryResponse;
-import com.miniproyecto.backend.dto.RescheduleTaskRequest;
-import com.miniproyecto.backend.dto.TodayTaskResponse;
 import com.miniproyecto.backend.service.EventService;
-import com.miniproyecto.backend.service.TaskRescheduleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -16,7 +13,6 @@ import com.miniproyecto.backend.dto.TaskRequest;
 import com.miniproyecto.backend.dto.UpdateEventRequest;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -34,14 +30,14 @@ import java.util.List;
 public class EventController {
 
     private final EventService eventService;
-    private final TaskRescheduleService taskRescheduleService;
 
-    public EventController(EventService eventService, TaskRescheduleService taskRescheduleService) {
+    public EventController(EventService eventService) {
         this.eventService = eventService;
-        this.taskRescheduleService = taskRescheduleService;
     }
 
-    @Operation(summary = "Crear un evento con sus gestiones")
+    @Operation(summary = "Crear un evento con sus gestiones",
+            description = "Responde 409 con code=overload_conflict si las gestiones de algún día superarían el límite diario.")
+    @ApiResponse(responseCode = "409", description = "Sobrecarga diaria (overload_conflict)")
     @ApiResponse(responseCode = "201", description = "Evento creado; cabecera Location con su URL")
     @PostMapping
     public ResponseEntity<EventDetailResponse> create(@Valid @RequestBody CreateEventRequest request) {
@@ -76,14 +72,21 @@ public class EventController {
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Añadir una gestión a un evento")
+    @Operation(summary = "Añadir una gestión a un evento",
+            description = "Responde 409 con code=overload_conflict si el día de la gestión superaría el límite diario.")
+    @ApiResponse(responseCode = "409", description = "Sobrecarga diaria (overload_conflict)")
     @ApiResponse(responseCode = "201", description = "Gestión creada; devuelve el evento actualizado")
     @PostMapping("/{id}/tasks")
     public ResponseEntity<EventDetailResponse> addTask(@PathVariable Long id, @Valid @RequestBody TaskRequest request) {
         return ResponseEntity.status(201).body(eventService.addTask(id, request));
     }
 
-    @Operation(summary = "Editar una gestión o cambiar su estado")
+    @Operation(summary = "Editar una gestión, reprogramarla o cambiar su estado",
+            description = "Si cambia la fecha o las horas y ese día quedaría por encima del límite diario del usuario "
+                    + "responde 409 con code=overload_conflict (cifras, excedente, horas disponibles y fechas "
+                    + "sugeridas) y no guarda nada. Se resuelve reenviando con otra fecha o menos horas. "
+                    + "Una fecha nueva anterior a hoy responde 400.")
+    @ApiResponse(responseCode = "409", description = "Sobrecarga diaria (overload_conflict)")
     @PutMapping("/{id}/tasks/{taskId}")
     public EventDetailResponse updateTask(
             @PathVariable Long id,
@@ -91,23 +94,6 @@ public class EventController {
             @Valid @RequestBody TaskRequest request
     ) {
         return eventService.updateTask(id, taskId, request);
-    }
-
-    @Operation(summary = "Reprogramar una gestión (nueva fecha y, opcionalmente, menos horas)",
-            description = "Persiste la nueva fecha límite, marca la gestión como pospuesta y devuelve la gestión "
-                    + "con su grupo de /hoy (OVERDUE, TODAY o UPCOMING) ya recalculado. Si el día elegido quedaría "
-                    + "por encima del límite diario del usuario responde 409 con code=overload_conflict, las cifras "
-                    + "(horas ya planificadas, horas de la gestión, total y límite) y fechas sugeridas. Se resuelve "
-                    + "reenviando la petición con otra fecha o con estimatedHours menor.")
-    @ApiResponse(responseCode = "400", description = "Fecha anterior a hoy, posterior al evento u horas inválidas")
-    @ApiResponse(responseCode = "409", description = "Sobrecarga diaria (overload_conflict) o gestión ya ejecutada")
-    @PatchMapping("/{id}/tasks/{taskId}/reschedule")
-    public TodayTaskResponse rescheduleTask(
-            @PathVariable Long id,
-            @PathVariable Long taskId,
-            @Valid @RequestBody RescheduleTaskRequest request
-    ) {
-        return taskRescheduleService.reschedule(id, taskId, request);
     }
 
     @Operation(summary = "Eliminar una gestión")

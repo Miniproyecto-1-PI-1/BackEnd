@@ -6,7 +6,6 @@ import com.miniproyecto.backend.exception.GlobalExceptionHandler;
 import com.miniproyecto.backend.exception.NotFoundException;
 import com.miniproyecto.backend.exception.OverloadConflictException;
 import com.miniproyecto.backend.service.EventService;
-import com.miniproyecto.backend.service.TaskRescheduleService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,7 +30,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -44,9 +42,6 @@ class EventControllerTest {
     @Mock
     private EventService eventService;
 
-    @Mock
-    private TaskRescheduleService taskRescheduleService;
-
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -54,7 +49,7 @@ class EventControllerTest {
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
         JsonMapper jsonMapper = JsonMapper.builder().build();
-        mockMvc = MockMvcBuilders.standaloneSetup(new EventController(eventService, taskRescheduleService))
+        mockMvc = MockMvcBuilders.standaloneSetup(new EventController(eventService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setValidator(validator)
                 .setMessageConverters(new JacksonJsonHttpMessageConverter(jsonMapper))
@@ -244,25 +239,14 @@ class EventControllerTest {
     }
 
     @Test
-    void reschedule_withoutDate_returns400() throws Exception {
-        mockMvc.perform(patch("/api/events/5/tasks/9/reschedule")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors.dueDate").exists());
-
-        verify(taskRescheduleService, never()).reschedule(any(), any(), any());
-    }
-
-    @Test
-    void reschedule_overload_returns409WithFigures() throws Exception {
-        when(taskRescheduleService.reschedule(eq(5L), eq(9L), any())).thenThrow(new OverloadConflictException(
+    void updateTask_overload_returns409WithFigures() throws Exception {
+        when(eventService.updateTask(eq(5L), eq(9L), any())).thenThrow(new OverloadConflictException(
                 LocalDate.of(2026, 10, 8), new BigDecimal("4.00"), new BigDecimal("3.00"),
                 new BigDecimal("7.00"), 6, List.of(LocalDate.of(2026, 10, 10))));
 
-        mockMvc.perform(patch("/api/events/5/tasks/9/reschedule")
+        mockMvc.perform(put("/api/events/5/tasks/9")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"dueDate\": \"2026-10-08\"}"))
+                        .content("{\"name\": \"Confirmar catering\", \"dueDate\": \"2026-10-08\", \"estimatedHours\": 3}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("overload_conflict"))
                 .andExpect(jsonPath("$.detail").value("Quedarías con 7h planificadas ese día (tu límite es 6h)."))
@@ -271,5 +255,18 @@ class EventControllerTest {
                 .andExpect(jsonPath("$.exceedsBy").value(1.0))
                 .andExpect(jsonPath("$.availableHours").value(2.0))
                 .andExpect(jsonPath("$.suggestedDates[0]").value("2026-10-10"));
+    }
+
+    @Test
+    void addTask_overload_returns409() throws Exception {
+        when(eventService.addTask(eq(5L), any())).thenThrow(new OverloadConflictException(
+                LocalDate.of(2026, 10, 8), new BigDecimal("5.00"), new BigDecimal("2.00"),
+                new BigDecimal("7.00"), 6, List.of()));
+
+        mockMvc.perform(post("/api/events/5/tasks")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\": \"Contratar DJ\", \"dueDate\": \"2026-10-08\", \"estimatedHours\": 2}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("overload_conflict"));
     }
 }
