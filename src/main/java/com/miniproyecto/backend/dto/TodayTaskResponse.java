@@ -2,6 +2,8 @@ package com.miniproyecto.backend.dto;
 
 import com.miniproyecto.backend.entity.TaskStatus;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -13,8 +15,8 @@ public record TodayTaskResponse(
         TaskStatus status,
         BigDecimal estimatedHours,
         LocalDate dueDate,
-        LocalTime startTime,
-        LocalTime endTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime startTime,
+        @JsonFormat(pattern = "HH:mm") LocalTime endTime,
         TodayCategory category,
         long daysFromToday,      // negativo = días de atraso
         Long eventId,
