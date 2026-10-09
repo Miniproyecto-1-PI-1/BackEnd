@@ -28,13 +28,14 @@ import java.util.Arrays;
 public class OpenApiConfig {
 
     private static final String ERROR_SCHEMA = "ApiErrorResponse";
+    private static final String OVERLOAD_SCHEMA = "OverloadConflictResponse";
     private static final String BEARER = "bearerAuth";
 
     @Bean
     public OpenAPI openApi() {
         OpenAPI openApi = new OpenAPI().info(new Info()
                 .title("Organizador de Eventos Independientes — API")
-                .version("Sprint 2")
+                .version("Sprint 3")
                 .description("Eventos y gestiones del Miniproyecto 1 (Proyecto Integrador I). "
                         + "Todos los errores comparten la forma ApiErrorResponse. "
                         + "Salvo /api/auth/register, /api/auth/login y /api/health, las rutas exigen "
@@ -51,7 +52,8 @@ public class OpenApiConfig {
     /**
      * Completa las respuestas de error que devuelven GlobalExceptionHandler y el entry point de seguridad:
      * 400 si hay body, path o query params; 401 si la ruta exige token; 404 si hay id.
-     * No pisa las descripciones declaradas con @ApiResponse, pero a todo 4xx/5xx le pone el esquema ApiErrorResponse.
+     * No pisa las descripciones declaradas con @ApiResponse; a todo 4xx/5xx le pone el esquema ApiErrorResponse,
+     * salvo al 409 que declara OverloadConflictResponse.
      */
     @Bean
     public OperationCustomizer errorResponses() {
@@ -73,7 +75,7 @@ public class OpenApiConfig {
                 responses.putIfAbsent("404", new ApiResponse().description("Evento o gestión no encontrados"));
             }
             responses.forEach((code, response) -> {
-                if (code.startsWith("4") || code.startsWith("5")) {
+                if ((code.startsWith("4") || code.startsWith("5")) && !hasOwnErrorSchema(response)) {
                     response.setContent(errorContent());
                 }
             });
@@ -83,6 +85,14 @@ public class OpenApiConfig {
 
     private static boolean hasParameter(HandlerMethod handlerMethod, Class<? extends Annotation> annotation) {
         return Arrays.stream(handlerMethod.getMethodParameters()).anyMatch(p -> p.hasParameterAnnotation(annotation));
+    }
+
+    /** Respeta el esquema de error propio declarado en @ApiResponse(content = ...), como el 409 de sobrecarga. */
+    private static boolean hasOwnErrorSchema(ApiResponse response) {
+        return response.getContent() != null && response.getContent().values().stream()
+                .map(MediaType::getSchema)
+                .anyMatch(schema -> schema != null && schema.get$ref() != null
+                        && schema.get$ref().endsWith("/" + OVERLOAD_SCHEMA));
     }
 
     private static Content errorContent() {
