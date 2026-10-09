@@ -3,10 +3,12 @@ package com.miniproyecto.backend.controller;
 import com.miniproyecto.backend.dto.CreateEventRequest;
 import com.miniproyecto.backend.dto.EventDetailResponse;
 import com.miniproyecto.backend.dto.EventSummaryResponse;
+import com.miniproyecto.backend.dto.OverloadConflictResponse;
 import com.miniproyecto.backend.service.EventService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -44,7 +46,8 @@ public class EventController {
             headers = @Header(name = "Location", description = "Ruta del evento creado, p. ej. /api/events/42",
                     schema = @Schema(type = "string")))
     @ApiResponse(responseCode = "404", description = "El usuario del token ya no existe")
-    @ApiResponse(responseCode = "409", description = "Sobrecarga diaria (incluye el objeto overload)")
+    @ApiResponse(responseCode = "409", description = "Sobrecarga diaria (incluye el objeto overload)",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = OverloadConflictResponse.class)))
     @PostMapping
     public ResponseEntity<EventDetailResponse> create(@Valid @RequestBody CreateEventRequest request) {
         EventDetailResponse created = eventService.create(request);
@@ -82,7 +85,8 @@ public class EventController {
 
     @Operation(summary = "Añadir una gestión a un evento",
             description = "Responde 409 (con el objeto overload) si el día de la gestión superaría el límite diario.")
-    @ApiResponse(responseCode = "409", description = "Sobrecarga diaria (incluye el objeto overload)")
+    @ApiResponse(responseCode = "409", description = "Sobrecarga diaria (incluye el objeto overload)",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = OverloadConflictResponse.class)))
     @ApiResponse(responseCode = "201", description = "Gestión creada; devuelve el evento actualizado")
     @PostMapping("/{id}/tasks")
     public ResponseEntity<EventDetailResponse> addTask(@PathVariable Long id, @Valid @RequestBody TaskRequest request) {
@@ -93,8 +97,10 @@ public class EventController {
             description = "Si cambia la fecha o las horas y ese día quedaría por encima del límite diario del usuario "
                     + "responde 409 (formato de error común más el objeto overload con cifras, excedente, "
                     + "horas disponibles y fechas sugeridas) y no guarda nada. Se resuelve reenviando con otra fecha o menos horas. "
-                    + "Una fecha nueva anterior a hoy responde 400.")
-    @ApiResponse(responseCode = "409", description = "Sobrecarga diaria (incluye el objeto overload)")
+                    + "Una fecha nueva anterior a hoy o posterior a la fecha del evento responde 400.")
+    @ApiResponse(responseCode = "200", description = "Gestión actualizada; devuelve el evento actualizado")
+    @ApiResponse(responseCode = "409", description = "Sobrecarga diaria (incluye el objeto overload)",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = OverloadConflictResponse.class)))
     @PutMapping("/{id}/tasks/{taskId}")
     public EventDetailResponse updateTask(
             @PathVariable Long id,
