@@ -17,7 +17,6 @@ import com.miniproyecto.backend.exception.NotFoundException;
 import com.miniproyecto.backend.repository.AppUserRepository;
 import com.miniproyecto.backend.repository.EventRepository;
 import com.miniproyecto.backend.security.CurrentUser;
-import com.miniproyecto.backend.util.AppClock;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -130,7 +129,7 @@ public class EventService {
     public EventDetailResponse addTask(Long eventId, TaskRequest request) {
         Event event = findOwnedEvent(eventId);
         Task task = toTask(request);
-        capacityService.ensureFits(CurrentUser.id(), AppClock.today(), task.getDueDate(), task.getEstimatedHours(),
+        capacityService.ensureFits(CurrentUser.id(), LocalDate.now(), task.getDueDate(), task.getEstimatedHours(),
                 null, event.getEventDate());
         task.setEvent(event);
         event.getTasks().add(task);
@@ -142,7 +141,7 @@ public class EventService {
         Event event = findOwnedEvent(eventId);
         Task task = findTask(event, taskId);
 
-        LocalDate today = AppClock.today();
+        LocalDate today = LocalDate.now();
         LocalDate newDate = request.dueDate() != null ? request.dueDate() : task.getDueDate();
         BigDecimal newHours = estimatedHours(request);
         TaskStatus newStatus = request.status() != null ? request.status() : task.getStatus();
@@ -197,7 +196,7 @@ public class EventService {
         Task task = new Task();
         task.setName(request.name().trim());
         task.setDescription(request.description());
-        task.setDueDate(request.dueDate() != null ? request.dueDate() : AppClock.today());
+        task.setDueDate(request.dueDate() != null ? request.dueDate() : LocalDate.now());
         task.setStartTime(request.startTime());
         task.setEndTime(request.endTime());
         task.setEstimatedHours(estimatedHours(request));

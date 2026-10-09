@@ -6,7 +6,6 @@ import com.miniproyecto.backend.dto.TodayTaskResponse;
 import com.miniproyecto.backend.repository.TaskRepository;
 import com.miniproyecto.backend.repository.TaskRepository.TaskTodayView;
 import com.miniproyecto.backend.security.CurrentUser;
-import com.miniproyecto.backend.util.AppClock;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,7 +27,7 @@ public class TodayService {
 
     @Transactional(readOnly = true)
     public TodayResponse getToday(Integer days, Boolean incluirHechas) {
-        return build(AppClock.today(), days, Boolean.TRUE.equals(incluirHechas));
+        return build(LocalDate.now(), days, Boolean.TRUE.equals(incluirHechas));
     }
 
     TodayResponse build(LocalDate today, Integer days, boolean incluirHechas) {
