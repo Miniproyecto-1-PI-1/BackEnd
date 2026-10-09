@@ -248,13 +248,15 @@ class EventControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\": \"Confirmar catering\", \"dueDate\": \"2026-10-08\", \"estimatedHours\": 3}"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("overload_conflict"))
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.title").value("Conflicto de sobrecarga"))
                 .andExpect(jsonPath("$.detail").value("Quedarías con 7h planificadas ese día (tu límite es 6h)."))
-                .andExpect(jsonPath("$.resultingHours").value(7.0))
-                .andExpect(jsonPath("$.limitHours").value(6))
-                .andExpect(jsonPath("$.exceedsBy").value(1.0))
-                .andExpect(jsonPath("$.availableHours").value(2.0))
-                .andExpect(jsonPath("$.suggestedDates[0]").value("2026-10-10"));
+                .andExpect(jsonPath("$.errors.dueDate").value("Quedarías con 7h planificadas ese día (tu límite es 6h)."))
+                .andExpect(jsonPath("$.overload.resultingHours").value(7.0))
+                .andExpect(jsonPath("$.overload.limitHours").value(6))
+                .andExpect(jsonPath("$.overload.exceedsBy").value(1.0))
+                .andExpect(jsonPath("$.overload.availableHours").value(2.0))
+                .andExpect(jsonPath("$.overload.suggestedDates[0]").value("2026-10-10"));
     }
 
     @Test
@@ -267,6 +269,6 @@ class EventControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\": \"Contratar DJ\", \"dueDate\": \"2026-10-08\", \"estimatedHours\": 2}"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("overload_conflict"));
+                .andExpect(jsonPath("$.overload.limitHours").value(6));
     }
 }

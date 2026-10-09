@@ -63,31 +63,16 @@ public class GlobalExceptionHandler {
                 HttpStatus.CONFLICT.value(),
                 "Conflicto de sobrecarga",
                 ex.getMessage(),
-                "overload_conflict",
-                ex.getDate(),
-                ex.getPlannedHours(),
-                ex.getTaskHours(),
-                ex.getResultingHours(),
-                ex.getLimitHours(),
-                ex.getExceedsBy(),
-                ex.getAvailableHours(),
-                ex.getSuggestedDates()
-        ));
-    }
-
-    @ExceptionHandler(OverloadConflictException.class)
-    public ResponseEntity<OverloadConflictResponse> handleOverload(OverloadConflictException ex) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(new OverloadConflictResponse(
-                HttpStatus.CONFLICT.value(),
-                "Conflicto de sobrecarga",
-                ex.getMessage(),
-                "overload_conflict",
-                ex.getDate(),
-                ex.getPlannedHours(),
-                ex.getTaskHours(),
-                ex.getResultingHours(),
-                ex.getLimitHours(),
-                ex.getSuggestedDates()
+                Map.of("dueDate", ex.getMessage()),
+                new OverloadConflictResponse.Overload(
+                        ex.getDate(),
+                        ex.getPlannedHours(),
+                        ex.getTaskHours(),
+                        ex.getResultingHours(),
+                        ex.getLimitHours(),
+                        ex.getExceedsBy(),
+                        ex.getAvailableHours(),
+                        ex.getSuggestedDates())
         ));
     }
 

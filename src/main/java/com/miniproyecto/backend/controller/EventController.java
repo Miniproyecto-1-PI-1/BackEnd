@@ -36,8 +36,8 @@ public class EventController {
     }
 
     @Operation(summary = "Crear un evento con sus gestiones",
-            description = "Responde 409 con code=overload_conflict si las gestiones de algún día superarían el límite diario.")
-    @ApiResponse(responseCode = "409", description = "Sobrecarga diaria (overload_conflict)")
+            description = "Responde 409 (con el objeto overload) si las gestiones de algún día superarían el límite diario.")
+    @ApiResponse(responseCode = "409", description = "Sobrecarga diaria (incluye el objeto overload)")
     @ApiResponse(responseCode = "201", description = "Evento creado; cabecera Location con su URL")
     @PostMapping
     public ResponseEntity<EventDetailResponse> create(@Valid @RequestBody CreateEventRequest request) {
@@ -73,8 +73,8 @@ public class EventController {
     }
 
     @Operation(summary = "Añadir una gestión a un evento",
-            description = "Responde 409 con code=overload_conflict si el día de la gestión superaría el límite diario.")
-    @ApiResponse(responseCode = "409", description = "Sobrecarga diaria (overload_conflict)")
+            description = "Responde 409 (con el objeto overload) si el día de la gestión superaría el límite diario.")
+    @ApiResponse(responseCode = "409", description = "Sobrecarga diaria (incluye el objeto overload)")
     @ApiResponse(responseCode = "201", description = "Gestión creada; devuelve el evento actualizado")
     @PostMapping("/{id}/tasks")
     public ResponseEntity<EventDetailResponse> addTask(@PathVariable Long id, @Valid @RequestBody TaskRequest request) {
@@ -83,10 +83,10 @@ public class EventController {
 
     @Operation(summary = "Editar una gestión, reprogramarla o cambiar su estado",
             description = "Si cambia la fecha o las horas y ese día quedaría por encima del límite diario del usuario "
-                    + "responde 409 con code=overload_conflict (cifras, excedente, horas disponibles y fechas "
-                    + "sugeridas) y no guarda nada. Se resuelve reenviando con otra fecha o menos horas. "
+                    + "responde 409 (formato de error común más el objeto overload con cifras, excedente, "
+                    + "horas disponibles y fechas sugeridas) y no guarda nada. Se resuelve reenviando con otra fecha o menos horas. "
                     + "Una fecha nueva anterior a hoy responde 400.")
-    @ApiResponse(responseCode = "409", description = "Sobrecarga diaria (overload_conflict)")
+    @ApiResponse(responseCode = "409", description = "Sobrecarga diaria (incluye el objeto overload)")
     @PutMapping("/{id}/tasks/{taskId}")
     public EventDetailResponse updateTask(
             @PathVariable Long id,
