@@ -5,6 +5,9 @@ import com.miniproyecto.backend.dto.EventDetailResponse;
 import com.miniproyecto.backend.dto.EventSummaryResponse;
 import com.miniproyecto.backend.service.EventService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -37,8 +40,11 @@ public class EventController {
 
     @Operation(summary = "Crear un evento con sus gestiones",
             description = "Responde 409 (con el objeto overload) si las gestiones de algún día superarían el límite diario.")
+    @ApiResponse(responseCode = "201", description = "Evento creado",
+            headers = @Header(name = "Location", description = "Ruta del evento creado, p. ej. /api/events/42",
+                    schema = @Schema(type = "string")))
+    @ApiResponse(responseCode = "404", description = "El usuario del token ya no existe")
     @ApiResponse(responseCode = "409", description = "Sobrecarga diaria (incluye el objeto overload)")
-    @ApiResponse(responseCode = "201", description = "Evento creado; cabecera Location con su URL")
     @PostMapping
     public ResponseEntity<EventDetailResponse> create(@Valid @RequestBody CreateEventRequest request) {
         EventDetailResponse created = eventService.create(request);
@@ -48,7 +54,9 @@ public class EventController {
 
     @Operation(summary = "Listar eventos con su progreso (búsqueda opcional con q)")
     @GetMapping
-    public List<EventSummaryResponse> list(@RequestParam(required = false) String q) {
+    public List<EventSummaryResponse> list(
+            @Parameter(description = "Texto a buscar en el nombre del evento, sin distinguir mayúsculas", example = "boda")
+            @RequestParam(required = false) String q) {
         return eventService.list(q);
     }
 
