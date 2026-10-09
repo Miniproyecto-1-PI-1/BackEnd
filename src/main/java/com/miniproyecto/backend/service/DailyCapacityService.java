@@ -1,5 +1,6 @@
 package com.miniproyecto.backend.service;
 
+import com.miniproyecto.backend.dto.SuggestedDate;
 import com.miniproyecto.backend.exception.OverloadConflictException;
 import com.miniproyecto.backend.exception.UnauthorizedException;
 import com.miniproyecto.backend.repository.AppUserRepository;
@@ -85,7 +86,7 @@ public class DailyCapacityService {
     }
 
     /** Próximos días (hasta el evento) donde la gestión cabe dentro del límite diario. */
-    private List<LocalDate> suggestDates(
+    private List<SuggestedDate> suggestDates(
             Long userId, LocalDate today, LocalDate eventDate, long excludeId, BigDecimal hours, int limit
     ) {
         LocalDate last = today.plusDays(SUGGESTION_WINDOW_DAYS);
@@ -102,10 +103,11 @@ public class DailyCapacityService {
         }
 
         BigDecimal max = BigDecimal.valueOf(limit);
-        List<LocalDate> suggestions = new ArrayList<>();
+        List<SuggestedDate> suggestions = new ArrayList<>();
         for (LocalDate day = today; !day.isAfter(last) && suggestions.size() < MAX_SUGGESTIONS; day = day.plusDays(1)) {
-            if (load.getOrDefault(day, BigDecimal.ZERO).add(hours).compareTo(max) <= 0) {
-                suggestions.add(day);
+            BigDecimal planned = load.getOrDefault(day, BigDecimal.ZERO);
+            if (planned.add(hours).compareTo(max) <= 0) {
+                suggestions.add(new SuggestedDate(day, max.subtract(planned)));
             }
         }
         return suggestions;

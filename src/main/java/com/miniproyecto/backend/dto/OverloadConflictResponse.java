@@ -25,7 +25,7 @@ public record OverloadConflictResponse(
             int limitHours,
             BigDecimal exceedsBy,        // resultingHours - limitHours
             BigDecimal availableHours,   // lo que sí cabe ese día: limitHours - plannedHours (mínimo 0)
-            List<LocalDate> suggestedDates
+            List<SuggestedDate> suggestedDates
     ) {
     }
 }

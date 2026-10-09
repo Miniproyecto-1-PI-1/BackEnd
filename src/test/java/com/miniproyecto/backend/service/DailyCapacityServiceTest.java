@@ -1,5 +1,6 @@
 package com.miniproyecto.backend.service;
 
+import com.miniproyecto.backend.dto.SuggestedDate;
 import com.miniproyecto.backend.entity.AppUser;
 import com.miniproyecto.backend.exception.OverloadConflictException;
 import com.miniproyecto.backend.repository.AppUserRepository;
@@ -89,8 +90,10 @@ class DailyCapacityServiceTest {
                     assertThat(ex.getLimitHours()).isEqualTo(6);
                     assertThat(ex.getExceedsBy()).isEqualByComparingTo("1");
                     assertThat(ex.getAvailableHours()).isEqualByComparingTo("2");
-                    assertThat(ex.getSuggestedDates()).containsExactly(
+                    assertThat(ex.getSuggestedDates()).extracting(SuggestedDate::date).containsExactly(
                             TODAY.plusDays(2), TODAY.plusDays(3), TODAY.plusDays(4));
+                    assertThat(ex.getSuggestedDates()).extracting(d -> d.availableHours().intValue())
+                            .containsExactly(6, 6, 6);
                 });
     }
 

@@ -2,6 +2,7 @@ package com.miniproyecto.backend.controller;
 
 import com.miniproyecto.backend.dto.ClientResponse;
 import com.miniproyecto.backend.dto.EventDetailResponse;
+import com.miniproyecto.backend.dto.SuggestedDate;
 import com.miniproyecto.backend.exception.GlobalExceptionHandler;
 import com.miniproyecto.backend.exception.NotFoundException;
 import com.miniproyecto.backend.exception.OverloadConflictException;
@@ -242,7 +243,7 @@ class EventControllerTest {
     void updateTask_overload_returns409WithFigures() throws Exception {
         when(eventService.updateTask(eq(5L), eq(9L), any())).thenThrow(new OverloadConflictException(
                 LocalDate.of(2026, 10, 8), new BigDecimal("4.00"), new BigDecimal("3.00"),
-                new BigDecimal("7.00"), 6, List.of(LocalDate.of(2026, 10, 10))));
+                new BigDecimal("7.00"), 6, List.of(new SuggestedDate(LocalDate.of(2026, 10, 10), new BigDecimal("4.00")))));
 
         mockMvc.perform(put("/api/events/5/tasks/9")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -256,7 +257,8 @@ class EventControllerTest {
                 .andExpect(jsonPath("$.overload.limitHours").value(6))
                 .andExpect(jsonPath("$.overload.exceedsBy").value(1.0))
                 .andExpect(jsonPath("$.overload.availableHours").value(2.0))
-                .andExpect(jsonPath("$.overload.suggestedDates[0]").value("2026-10-10"));
+                .andExpect(jsonPath("$.overload.suggestedDates[0].date").value("2026-10-10"))
+                .andExpect(jsonPath("$.overload.suggestedDates[0].availableHours").value(4.0));
     }
 
     @Test

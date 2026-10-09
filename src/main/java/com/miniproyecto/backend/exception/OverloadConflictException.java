@@ -1,5 +1,7 @@
 package com.miniproyecto.backend.exception;
 
+import com.miniproyecto.backend.dto.SuggestedDate;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -11,7 +13,7 @@ public class OverloadConflictException extends RuntimeException {
     private final BigDecimal taskHours;
     private final BigDecimal resultingHours;
     private final int limitHours;
-    private final List<LocalDate> suggestedDates;
+    private final List<SuggestedDate> suggestedDates;
 
     public OverloadConflictException(
             LocalDate date,
@@ -19,7 +21,7 @@ public class OverloadConflictException extends RuntimeException {
             BigDecimal taskHours,
             BigDecimal resultingHours,
             int limitHours,
-            List<LocalDate> suggestedDates
+            List<SuggestedDate> suggestedDates
     ) {
         super("Quedarías con " + format(resultingHours) + "h planificadas ese día (tu límite es "
                 + limitHours + "h).");
@@ -48,5 +50,5 @@ public class OverloadConflictException extends RuntimeException {
     public BigDecimal getTaskHours() { return taskHours; }
     public BigDecimal getResultingHours() { return resultingHours; }
     public int getLimitHours() { return limitHours; }
-    public List<LocalDate> getSuggestedDates() { return suggestedDates; }
+    public List<SuggestedDate> getSuggestedDates() { return suggestedDates; }
 }
