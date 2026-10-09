@@ -82,7 +82,7 @@ class DailyCapacityServiceTest {
 
         assertThatThrownBy(() -> ensure(TODAY, "3", TASK))
                 .isInstanceOfSatisfying(OverloadConflictException.class, ex -> {
-                    assertThat(ex.getMessage()).isEqualTo("Ese día superaría tu límite diario de horas.");
+                    assertThat(ex.getMessage()).isEqualTo("Quedarías con 7h planificadas ese día (tu límite es 6h).");
                     assertThat(ex.getDate()).isEqualTo(TODAY);
                     assertThat(ex.getPlannedHours()).isEqualByComparingTo("4");
                     assertThat(ex.getTaskHours()).isEqualByComparingTo("3");
