@@ -3,7 +3,9 @@ package com.miniproyecto.backend.controller;
 import com.miniproyecto.backend.dto.AvatarRequest;
 import com.miniproyecto.backend.dto.ChangePasswordRequest;
 import com.miniproyecto.backend.dto.DeleteAccountRequest;
+import com.miniproyecto.backend.dto.DailyLimitResponse;
 import com.miniproyecto.backend.dto.UpdateProfileRequest;
+import com.miniproyecto.backend.dto.UpdateDailyLimitRequest;
 import com.miniproyecto.backend.dto.UserResponse;
 import com.miniproyecto.backend.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,6 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -52,6 +55,19 @@ public class UserController {
     @PutMapping("/avatar")
     public UserResponse updateAvatar(@Valid @RequestBody AvatarRequest request) {
         return userService.updateAvatar(request);
+    }
+
+    @Operation(summary = "Consultar los parámetros de planificación (límite diario de horas; 6 por defecto)")
+    @GetMapping("/planning-preferences")
+    public DailyLimitResponse getDailyLimit() {
+        return userService.getDailyLimit();
+    }
+
+    @Operation(summary = "Actualizar el límite diario de horas de gestión (entre 1 y 16)")
+    @ApiResponse(responseCode = "400", description = "El valor está fuera del rango 1–16")
+    @PutMapping("/planning-preferences")
+    public DailyLimitResponse updateDailyLimit(@Valid @RequestBody UpdateDailyLimitRequest request) {
+        return userService.updateDailyLimit(request);
     }
 
     @Operation(summary = "Eliminar la cuenta con todos sus eventos, gestiones y clientes")

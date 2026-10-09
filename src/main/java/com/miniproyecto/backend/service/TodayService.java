@@ -72,6 +72,7 @@ public class TodayService {
                 diff,
                 view.getEventId(),
                 view.getEventName(),
+                view.getEventDate(),
                 view.getClientName()
         );
     }

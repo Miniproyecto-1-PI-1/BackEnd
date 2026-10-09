@@ -2,8 +2,10 @@ package com.miniproyecto.backend.controller;
 
 import com.miniproyecto.backend.dto.ClientResponse;
 import com.miniproyecto.backend.dto.EventDetailResponse;
+import com.miniproyecto.backend.dto.SuggestedDate;
 import com.miniproyecto.backend.exception.GlobalExceptionHandler;
 import com.miniproyecto.backend.exception.NotFoundException;
+import com.miniproyecto.backend.exception.OverloadConflictException;
 import com.miniproyecto.backend.service.EventService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,6 +19,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
@@ -234,5 +237,40 @@ class EventControllerTest {
     private static EventDetailResponse emptyEvent() {
         return new EventDetailResponse(15L, "Fiesta de prueba", "Social", null, LocalDate.of(2026, 12, 5),
                 LocalTime.of(18, 0), "Salón Central", null, List.of(), 0, 0, 0);
+    }
+
+    @Test
+    void updateTask_overload_returns409WithFigures() throws Exception {
+        when(eventService.updateTask(eq(5L), eq(9L), any())).thenThrow(new OverloadConflictException(
+                LocalDate.of(2026, 10, 8), new BigDecimal("4.00"), new BigDecimal("3.00"),
+                new BigDecimal("7.00"), 6, List.of(new SuggestedDate(LocalDate.of(2026, 10, 10), new BigDecimal("4.00")))));
+
+        mockMvc.perform(put("/api/events/5/tasks/9")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\": \"Confirmar catering\", \"dueDate\": \"2026-10-08\", \"estimatedHours\": 3}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.title").value("Conflicto de sobrecarga"))
+                .andExpect(jsonPath("$.detail").value("Quedarías con 7h planificadas ese día (tu límite es 6h)."))
+                .andExpect(jsonPath("$.errors.dueDate").value("Quedarías con 7h planificadas ese día (tu límite es 6h)."))
+                .andExpect(jsonPath("$.overload.resultingHours").value(7.0))
+                .andExpect(jsonPath("$.overload.limitHours").value(6))
+                .andExpect(jsonPath("$.overload.exceedsBy").value(1.0))
+                .andExpect(jsonPath("$.overload.availableHours").value(2.0))
+                .andExpect(jsonPath("$.overload.suggestedDates[0].date").value("2026-10-10"))
+                .andExpect(jsonPath("$.overload.suggestedDates[0].availableHours").value(4.0));
+    }
+
+    @Test
+    void addTask_overload_returns409() throws Exception {
+        when(eventService.addTask(eq(5L), any())).thenThrow(new OverloadConflictException(
+                LocalDate.of(2026, 10, 8), new BigDecimal("5.00"), new BigDecimal("2.00"),
+                new BigDecimal("7.00"), 6, List.of()));
+
+        mockMvc.perform(post("/api/events/5/tasks")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\": \"Contratar DJ\", \"dueDate\": \"2026-10-08\", \"estimatedHours\": 2}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.overload.limitHours").value(6));
     }
 }
