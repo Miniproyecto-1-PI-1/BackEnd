@@ -3,6 +3,8 @@ package com.miniproyecto.backend.service;
 import com.miniproyecto.backend.dto.AvatarRequest;
 import com.miniproyecto.backend.dto.ChangePasswordRequest;
 import com.miniproyecto.backend.dto.DeleteAccountRequest;
+import com.miniproyecto.backend.dto.DailyLimitResponse;
+import com.miniproyecto.backend.dto.UpdateDailyLimitRequest;
 import com.miniproyecto.backend.dto.UpdateProfileRequest;
 import com.miniproyecto.backend.dto.UserResponse;
 import com.miniproyecto.backend.entity.AppUser;
@@ -88,6 +90,18 @@ public class UserService {
         AppUser user = currentUser();
         user.setAvatar(image);
         return AuthService.toUserResponse(appUserRepository.save(user));
+    }
+
+    @Transactional(readOnly = true)
+    public DailyLimitResponse getDailyLimit() {
+        return new DailyLimitResponse(currentUser().getDailyHourLimit());
+    }
+
+    @Transactional
+    public DailyLimitResponse updateDailyLimit(UpdateDailyLimitRequest request) {
+        AppUser user = currentUser();
+        user.setDailyHourLimit(request.dailyLimitHours());
+        return new DailyLimitResponse(appUserRepository.save(user).getDailyHourLimit());
     }
 
     /** Borra la cuenta con todos sus eventos (y gestiones, por cascada) y clientes. */

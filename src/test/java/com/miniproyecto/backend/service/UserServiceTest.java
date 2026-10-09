@@ -3,6 +3,8 @@ package com.miniproyecto.backend.service;
 import com.miniproyecto.backend.dto.AvatarRequest;
 import com.miniproyecto.backend.dto.ChangePasswordRequest;
 import com.miniproyecto.backend.dto.DeleteAccountRequest;
+import com.miniproyecto.backend.dto.DailyLimitResponse;
+import com.miniproyecto.backend.dto.UpdateDailyLimitRequest;
 import com.miniproyecto.backend.dto.UpdateProfileRequest;
 import com.miniproyecto.backend.dto.UserResponse;
 import com.miniproyecto.backend.entity.AppUser;
@@ -82,6 +84,31 @@ class UserServiceTest {
 
     private static String fieldOf(Throwable ex) {
         return ((FieldErrorException) ex).getErrors().keySet().iterator().next();
+    }
+
+    @Test
+    void dailyLimitDefaultsToSixHours() {
+        assertThat(userService.getDailyLimit().dailyLimitHours()).isEqualTo(6);
+    }
+
+    @Test
+    void updateDailyLimitPersistsTheNewLimitOnTheCurrentUserOnly() {
+        stubSave();
+
+        DailyLimitResponse response = userService.updateDailyLimit(new UpdateDailyLimitRequest(9));
+
+        assertThat(response.dailyLimitHours()).isEqualTo(9);
+        assertThat(user.getDailyHourLimit()).isEqualTo(9);
+    }
+
+    @Test
+    void userResponseIncludesTheDailyLimit() {
+        stubSave();
+
+        UserResponse response = userService.updateProfile(
+                new UpdateProfileRequest("Valentina", "valentina@eventosvv.co", null));
+
+        assertThat(response.dailyLimitHours()).isEqualTo(6);
     }
 
     @Test
