@@ -498,6 +498,34 @@ class EventServiceTest {
     }
 
     @Test
+    void changeTaskStatus_postponeAfterTheEventDateIsRejected() {
+        Event event = event(10L);
+        Task existing = existingTask(event, 5L);
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+
+        assertThatThrownBy(() -> eventService.changeTaskStatus(10L, 5L,
+                new TaskStatusRequest(TaskStatus.POSTPONED, null, event.getEventDate().plusDays(1))))
+                .isInstanceOfSatisfying(FieldErrorException.class,
+                        ex -> assertThat(ex.getErrors().get("dueDate")).contains("posterior al evento"));
+
+        assertThat(existing.getStatus()).isEqualTo(TaskStatus.PENDING);
+        verify(eventRepository, never()).save(any(Event.class));
+    }
+
+    @Test
+    void changeTaskStatus_postponeOnTheEventDateIsAllowed() {
+        Event event = event(10L);
+        Task existing = existingTask(event, 5L);
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        when(eventRepository.save(event)).thenReturn(event);
+
+        eventService.changeTaskStatus(10L, 5L, new TaskStatusRequest(TaskStatus.POSTPONED, null, event.getEventDate()));
+
+        assertThat(existing.getDueDate()).isEqualTo(event.getEventDate());
+        assertThat(existing.getStatus()).isEqualTo(TaskStatus.POSTPONED);
+    }
+
+    @Test
     void changeTaskStatus_reopeningClearsCompletedAtAndChecksCapacity() {
         Event event = event(10L);
         Task existing = existingTask(event, 5L);
