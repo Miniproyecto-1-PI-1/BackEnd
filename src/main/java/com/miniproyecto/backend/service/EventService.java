@@ -166,6 +166,9 @@ public class EventService {
         task.setEndTime(request.endTime());
         task.setEstimatedHours(newHours);
         task.setStatus(newStatus);
+        if (request.note() != null) {
+            task.setNote(blankToNull(request.note()));
+        }
         return toDetail(eventRepository.save(event));
     }
 
@@ -201,6 +204,7 @@ public class EventService {
         task.setEndTime(request.endTime());
         task.setEstimatedHours(estimatedHours(request));
         task.setStatus(TaskStatus.PENDING);
+        task.setNote(blankToNull(request.note()));
         return task;
     }
 
@@ -265,7 +269,9 @@ public class EventService {
                 task.getStartTime(),
                 task.getEndTime(),
                 task.getEstimatedHours(),
-                task.getStatus()
+                task.getStatus(),
+                task.getNote(),
+                task.getCompletedAt()
         );
     }
 }

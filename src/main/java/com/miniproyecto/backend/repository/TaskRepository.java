@@ -25,7 +25,8 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
                    e.id AS eventId,
                    e.name AS eventName,
                    e.eventDate AS eventDate,
-                   c.name AS clientName
+                   c.name AS clientName,
+                   t.note AS note
             FROM Task t
             JOIN t.event e
             LEFT JOIN e.client c
@@ -86,5 +87,6 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
         String getEventName();
         LocalDate getEventDate();
         String getClientName();
+        String getNote();
     }
 }

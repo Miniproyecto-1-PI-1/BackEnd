@@ -114,6 +114,11 @@ class TodayServiceTest {
         }
 
         @Override
+        public String getNote() {
+            return null;
+        }
+
+        @Override
         public String getClientName() {
             return "Ana";
         }

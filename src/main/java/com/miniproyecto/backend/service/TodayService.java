@@ -73,7 +73,8 @@ public class TodayService {
                 view.getEventId(),
                 view.getEventName(),
                 view.getEventDate(),
-                view.getClientName()
+                view.getClientName(),
+                view.getNote()
         );
     }
 }
