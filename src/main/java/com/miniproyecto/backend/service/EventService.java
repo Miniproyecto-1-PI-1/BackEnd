@@ -6,12 +6,14 @@ import com.miniproyecto.backend.dto.EventDetailResponse;
 import com.miniproyecto.backend.dto.EventSummaryResponse;
 import com.miniproyecto.backend.dto.TaskRequest;
 import com.miniproyecto.backend.dto.TaskResponse;
+import com.miniproyecto.backend.dto.TaskStatusRequest;
 import com.miniproyecto.backend.dto.UpdateEventRequest;
 import com.miniproyecto.backend.entity.AppUser;
 import com.miniproyecto.backend.entity.Client;
 import com.miniproyecto.backend.entity.Event;
 import com.miniproyecto.backend.entity.Task;
 import com.miniproyecto.backend.entity.TaskStatus;
+import com.miniproyecto.backend.exception.ConflictException;
 import com.miniproyecto.backend.exception.FieldErrorException;
 import com.miniproyecto.backend.exception.NotFoundException;
 import com.miniproyecto.backend.repository.AppUserRepository;
@@ -23,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -141,10 +144,56 @@ public class EventService {
         Event event = findOwnedEvent(eventId);
         Task task = findTask(event, taskId);
 
-        LocalDate today = LocalDate.now();
         LocalDate newDate = request.dueDate() != null ? request.dueDate() : task.getDueDate();
         BigDecimal newHours = estimatedHours(request);
         TaskStatus newStatus = request.status() != null ? request.status() : task.getStatus();
+        validateChange(event, task, newDate, newHours, newStatus);
+
+        task.setName(request.name().trim());
+        task.setDescription(request.description());
+        task.setDueDate(newDate);
+        task.setStartTime(request.startTime());
+        task.setEndTime(request.endTime());
+        task.setEstimatedHours(newHours);
+        applyStatus(task, newStatus);
+        if (request.note() != null) {
+            task.setNote(blankToNull(request.note()));
+        }
+        return toDetail(eventRepository.save(event));
+    }
+
+    /**
+     * Registra avance: hecha, pospuesta (con nota opcional) o de nuevo pendiente. Al posponer sin fecha, la gestión
+     * pasa a la próxima fecha libre; con fecha, sigue las mismas reglas que reprogramar (incluido el 409).
+     */
+    @Transactional
+    public EventDetailResponse changeTaskStatus(Long eventId, Long taskId, TaskStatusRequest request) {
+        Event event = findOwnedEvent(eventId);
+        Task task = findTask(event, taskId);
+        TaskStatus target = request.status();
+
+        LocalDate newDate = task.getDueDate();
+        if (target == TaskStatus.POSTPONED) {
+            newDate = request.dueDate() != null
+                    ? request.dueDate()
+                    : capacityService.nextFreeDate(CurrentUser.id(), LocalDate.now(), event.getEventDate(),
+                                    task.getId(), task.getEstimatedHours())
+                            .orElseThrow(() -> new ConflictException("No hay un día libre antes del evento para «"
+                                    + task.getName() + "». Reduce sus horas o elige una fecha."));
+        }
+        validateChange(event, task, newDate, task.getEstimatedHours(), target);
+
+        task.setDueDate(newDate);
+        applyStatus(task, target);
+        if (request.note() != null) {
+            task.setNote(blankToNull(request.note()));
+        }
+        return toDetail(eventRepository.save(event));
+    }
+
+    /** Reglas de fecha y de límite diario compartidas por editar, reprogramar y posponer. */
+    private void validateChange(Event event, Task task, LocalDate newDate, BigDecimal newHours, TaskStatus newStatus) {
+        LocalDate today = LocalDate.now();
         boolean dateChanged = !newDate.equals(task.getDueDate());
         boolean hoursChanged = newHours.compareTo(task.getEstimatedHours()) != 0;
         boolean reopened = task.getStatus() == TaskStatus.DONE && newStatus != TaskStatus.DONE;
@@ -158,18 +207,16 @@ public class EventService {
         if (newStatus != TaskStatus.DONE && (dateChanged || hoursChanged || reopened)) {
             capacityService.ensureFits(CurrentUser.id(), today, newDate, newHours, task.getId(), event.getEventDate());
         }
+    }
 
-        task.setName(request.name().trim());
-        task.setDescription(request.description());
-        task.setDueDate(newDate);
-        task.setStartTime(request.startTime());
-        task.setEndTime(request.endTime());
-        task.setEstimatedHours(newHours);
-        task.setStatus(newStatus);
-        if (request.note() != null) {
-            task.setNote(blankToNull(request.note()));
+    /** Cambia el estado y mantiene completedAt: se llena al ejecutar y se borra al dejar de estar hecha. */
+    private static void applyStatus(Task task, TaskStatus status) {
+        if (status == TaskStatus.DONE && task.getStatus() != TaskStatus.DONE) {
+            task.setCompletedAt(LocalDateTime.now());
+        } else if (status != TaskStatus.DONE) {
+            task.setCompletedAt(null);
         }
-        return toDetail(eventRepository.save(event));
+        task.setStatus(status);
     }
 
     @Transactional

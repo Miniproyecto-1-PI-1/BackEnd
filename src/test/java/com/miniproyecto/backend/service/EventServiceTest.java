@@ -4,12 +4,14 @@ import com.miniproyecto.backend.dto.ClientRequest;
 import com.miniproyecto.backend.dto.CreateEventRequest;
 import com.miniproyecto.backend.dto.EventDetailResponse;
 import com.miniproyecto.backend.dto.TaskRequest;
+import com.miniproyecto.backend.dto.TaskStatusRequest;
 import com.miniproyecto.backend.dto.UpdateEventRequest;
 import com.miniproyecto.backend.entity.AppUser;
 import com.miniproyecto.backend.entity.Client;
 import com.miniproyecto.backend.entity.Event;
 import com.miniproyecto.backend.entity.Task;
 import com.miniproyecto.backend.entity.TaskStatus;
+import com.miniproyecto.backend.exception.ConflictException;
 import com.miniproyecto.backend.exception.FieldErrorException;
 import com.miniproyecto.backend.exception.NotFoundException;
 import com.miniproyecto.backend.exception.OverloadConflictException;
@@ -413,6 +415,138 @@ class EventServiceTest {
         assertThat(eventService.progress(3, 1)).isEqualTo(33);
         assertThat(eventService.progress(3, 2)).isEqualTo(67);
         assertThat(eventService.progress(2, 2)).isEqualTo(100);
+    }
+
+    @Test
+    void changeTaskStatus_doneKeepsTheNoteAndStampsCompletedAt() {
+        Event event = event(10L);
+        Task existing = existingTask(event, 5L);
+        existing.setNote("Esperando confirmación del salón");
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        when(eventRepository.save(event)).thenReturn(event);
+
+        EventDetailResponse response = eventService.changeTaskStatus(10L, 5L, new TaskStatusRequest(TaskStatus.DONE, null, null));
+
+        assertThat(existing.getStatus()).isEqualTo(TaskStatus.DONE);
+        assertThat(existing.getNote()).isEqualTo("Esperando confirmación del salón");
+        assertThat(existing.getCompletedAt()).isNotNull();
+        assertThat(response.tasks().getFirst().completedAt()).isNotNull();
+        verify(capacityService, never()).ensureFits(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void changeTaskStatus_postponeWithoutDateMovesToTheNextFreeDate() {
+        Event event = event(10L);
+        Task existing = existingTask(event, 5L);
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        when(eventRepository.save(event)).thenReturn(event);
+        when(capacityService.nextFreeDate(eq(1L), any(LocalDate.class), any(), eq(5L), any()))
+                .thenReturn(Optional.of(LocalDate.of(2026, 11, 25)));
+
+        eventService.changeTaskStatus(10L, 5L, new TaskStatusRequest(TaskStatus.POSTPONED, "Esperando al proveedor", null));
+
+        assertThat(existing.getDueDate()).isEqualTo(LocalDate.of(2026, 11, 25));
+        assertThat(existing.getStatus()).isEqualTo(TaskStatus.POSTPONED);
+        assertThat(existing.getNote()).isEqualTo("Esperando al proveedor");
+        assertThat(existing.getCompletedAt()).isNull();
+        verify(capacityService).ensureFits(eq(1L), any(LocalDate.class), eq(LocalDate.of(2026, 11, 25)),
+                any(), eq(5L), any());
+    }
+
+    @Test
+    void changeTaskStatus_postponeWithDateChecksCapacityOnThatDate() {
+        Event event = event(10L);
+        Task existing = existingTask(event, 5L);
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        when(eventRepository.save(event)).thenReturn(event);
+
+        eventService.changeTaskStatus(10L, 5L,
+                new TaskStatusRequest(TaskStatus.POSTPONED, null, LocalDate.of(2026, 11, 22)));
+
+        assertThat(existing.getDueDate()).isEqualTo(LocalDate.of(2026, 11, 22));
+        verify(capacityService, never()).nextFreeDate(any(), any(), any(), any(), any());
+        verify(capacityService).ensureFits(eq(1L), any(LocalDate.class), eq(LocalDate.of(2026, 11, 22)),
+                any(), eq(5L), any());
+    }
+
+    @Test
+    void changeTaskStatus_postponeWithoutAnyFreeDayIsRejectedAndNothingChanges() {
+        Event event = event(10L);
+        Task existing = existingTask(event, 5L);
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+
+        assertThatThrownBy(() -> eventService.changeTaskStatus(10L, 5L,
+                new TaskStatusRequest(TaskStatus.POSTPONED, "x", null)))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("No hay un día libre");
+
+        assertThat(existing.getStatus()).isEqualTo(TaskStatus.PENDING);
+        assertThat(existing.getNote()).isNull();
+        verify(eventRepository, never()).save(any(Event.class));
+    }
+
+    @Test
+    void changeTaskStatus_postponeToAPastDateIsRejected() {
+        Event event = event(10L);
+        existingTask(event, 5L);
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+
+        assertThatThrownBy(() -> eventService.changeTaskStatus(10L, 5L,
+                new TaskStatusRequest(TaskStatus.POSTPONED, null, LocalDate.of(2020, 1, 1))))
+                .isInstanceOfSatisfying(FieldErrorException.class,
+                        ex -> assertThat(ex.getErrors()).containsKey("dueDate"));
+    }
+
+    @Test
+    void changeTaskStatus_reopeningClearsCompletedAtAndChecksCapacity() {
+        Event event = event(10L);
+        Task existing = existingTask(event, 5L);
+        existing.setStatus(TaskStatus.DONE);
+        existing.setCompletedAt(java.time.LocalDateTime.of(2026, 10, 14, 10, 0));
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        when(eventRepository.save(event)).thenReturn(event);
+
+        eventService.changeTaskStatus(10L, 5L, new TaskStatusRequest(TaskStatus.PENDING, null, null));
+
+        assertThat(existing.getStatus()).isEqualTo(TaskStatus.PENDING);
+        assertThat(existing.getCompletedAt()).isNull();
+        verify(capacityService).ensureFits(eq(1L), any(LocalDate.class), any(), any(), eq(5L), any());
+    }
+
+    @Test
+    void changeTaskStatus_blankNoteClearsIt() {
+        Event event = event(10L);
+        Task existing = existingTask(event, 5L);
+        existing.setNote("Antigua");
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        when(eventRepository.save(event)).thenReturn(event);
+
+        eventService.changeTaskStatus(10L, 5L, new TaskStatusRequest(TaskStatus.DONE, "   ", null));
+
+        assertThat(existing.getNote()).isNull();
+    }
+
+    @Test
+    void changeTaskStatus_ofAnotherUsersEventIsNotFound() {
+        when(eventRepository.findDetailByIdAndUserId(99L, 1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> eventService.changeTaskStatus(99L, 5L, new TaskStatusRequest(TaskStatus.DONE, null, null)))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void updateTask_keepsTheNoteWhenTheRequestDoesNotCarryOne() {
+        Event event = event(10L);
+        Task existing = existingTask(event, 5L);
+        existing.setNote("Se conserva");
+        existing.setEstimatedHours(new BigDecimal("3.00"));
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        when(eventRepository.save(event)).thenReturn(event);
+
+        eventService.updateTask(10L, 5L, task("Renombrada", new BigDecimal("3"), null));
+
+        assertThat(existing.getName()).isEqualTo("Renombrada");
+        assertThat(existing.getNote()).isEqualTo("Se conserva");
     }
 
     private Event event(Long id) {
