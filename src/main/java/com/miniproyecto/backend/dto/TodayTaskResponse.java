@@ -26,6 +26,8 @@ public record TodayTaskResponse(
         @Schema(example = "Boda Andrea y Julián") String eventName,
         @Schema(description = "Fecha del evento: tope al reprogramar la gestión", example = "2026-12-05")
         LocalDate eventDate,
-        @Schema(example = "Andrea Muñoz") String clientName
+        @Schema(example = "Andrea Muñoz") String clientName,
+        @Schema(description = "Nota opcional de la gestión; null si no tiene", example = "Esperando confirmación del salón")
+        String note
 ) {
 }

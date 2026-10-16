@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -32,8 +33,16 @@ public record TaskRequest(
         @Schema(description = "Si no viene se calcula del horario, o 1 si no hay horario", example = "2")
         @Positive(message = "Las horas estimadas deben ser mayores que 0.") BigDecimal estimatedHours,
         @Schema(description = "Solo al editar; se ignora al crear", example = "PENDING")
-        TaskStatus status
+        TaskStatus status,
+        @Schema(description = "Nota opcional (máx. 500). Al editar, si no viene se conserva; vacía la borra",
+                example = "Esperando confirmación del salón")
+        @Size(max = 500, message = "La nota no puede superar 500 caracteres.") String note
 ) {
+
+    public TaskRequest(String name, String description, LocalDate dueDate, LocalTime startTime, LocalTime endTime,
+                       BigDecimal estimatedHours, TaskStatus status) {
+        this(name, description, dueDate, startTime, endTime, estimatedHours, status, null);
+    }
 
     @JsonIgnore
     @AssertTrue(message = "La hora de fin debe ser posterior a la de inicio.")

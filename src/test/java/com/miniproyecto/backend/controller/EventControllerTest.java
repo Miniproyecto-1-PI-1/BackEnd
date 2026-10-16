@@ -31,6 +31,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -270,6 +271,43 @@ class EventControllerTest {
         mockMvc.perform(post("/api/events/5/tasks")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\": \"Contratar DJ\", \"dueDate\": \"2026-10-08\", \"estimatedHours\": 2}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.overload.limitHours").value(6));
+    }
+
+    @Test
+    void changeTaskStatus_withoutStatus_returns400() throws Exception {
+        mockMvc.perform(patch("/api/events/5/tasks/9/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"note\": \"Esperando\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.status").exists());
+
+        verify(eventService, never()).changeTaskStatus(any(), any(), any());
+    }
+
+    @Test
+    void changeTaskStatus_returnsTheUpdatedEvent() throws Exception {
+        EventDetailResponse detail = new EventDetailResponse(5L, "Boda", "Boda", null, LocalDate.of(2026, 12, 5),
+                LocalTime.of(17, 0), "Hacienda", null, List.of(), 0, 0, 0);
+        when(eventService.changeTaskStatus(eq(5L), eq(9L), any())).thenReturn(detail);
+
+        mockMvc.perform(patch("/api/events/5/tasks/9/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\": \"POSTPONED\", \"note\": \"Esperando\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(5));
+    }
+
+    @Test
+    void changeTaskStatus_overload_returns409WithFigures() throws Exception {
+        when(eventService.changeTaskStatus(eq(5L), eq(9L), any())).thenThrow(new OverloadConflictException(
+                LocalDate.of(2026, 10, 20), new BigDecimal("4.00"), new BigDecimal("3.00"),
+                new BigDecimal("7.00"), 6, List.of()));
+
+        mockMvc.perform(patch("/api/events/5/tasks/9/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\": \"POSTPONED\", \"dueDate\": \"2026-10-20\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.overload.limitHours").value(6));
     }

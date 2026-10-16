@@ -58,6 +58,14 @@ public class Task {
     @Column(nullable = false)
     private TaskStatus status = TaskStatus.PENDING;
 
+    /** Nota opcional del organizador (p. ej. por qué se pospuso); se conserva al marcar como hecha. */
+    @Column(length = 500)
+    private String note;
+
+    /** Momento en que se ejecutó; null mientras no esté hecha. */
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
