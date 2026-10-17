@@ -25,7 +25,8 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
                    e.id AS eventId,
                    e.name AS eventName,
                    e.eventDate AS eventDate,
-                   c.name AS clientName
+                   c.name AS clientName,
+                   t.note AS note
             FROM Task t
             JOIN t.event e
             LEFT JOIN e.client c
@@ -68,6 +69,22 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
             @Param("to") LocalDate to,
             @Param("excludeId") Long excludeId);
 
+    /** Días desde {@code from} cuyas horas planificadas (no hechas) superan {@code limit}, del más próximo al más lejano. */
+    @Query("""
+            SELECT t.dueDate AS date, SUM(t.estimatedHours) AS hours
+            FROM Task t JOIN t.event e
+            WHERE e.user.id = :userId
+              AND t.dueDate >= :from
+              AND t.status <> com.miniproyecto.backend.entity.TaskStatus.DONE
+            GROUP BY t.dueDate
+            HAVING SUM(t.estimatedHours) > :limit
+            ORDER BY t.dueDate ASC
+            """)
+    List<DayLoad> findDaysOverLimit(
+            @Param("userId") Long userId,
+            @Param("from") LocalDate from,
+            @Param("limit") BigDecimal limit);
+
     interface DayLoad {
         LocalDate getDate();
         BigDecimal getHours();
@@ -86,5 +103,20 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
         String getEventName();
         LocalDate getEventDate();
         String getClientName();
+        String getNote();
+    }
+
+    /** Estado y fecha de cada gestión del usuario, para calcular el progreso por evento. */
+    @Query("""
+            SELECT t.event.id AS eventId, t.status AS status, t.dueDate AS dueDate
+            FROM Task t
+            WHERE t.event.user.id = :userId
+            """)
+    List<ProgressRow> findProgressRows(@Param("userId") Long userId);
+
+    interface ProgressRow {
+        Long getEventId();
+        TaskStatus getStatus();
+        LocalDate getDueDate();
     }
 }

@@ -75,6 +75,35 @@ public class DailyCapacityService {
         }
     }
 
+    /**
+     * Primer día, desde mañana y hasta la fecha del evento (máx. 60 días), donde {@code hours} caben sin pasar
+     * el límite diario. Vacío si ninguno tiene espacio.
+     */
+    public java.util.Optional<LocalDate> nextFreeDate(
+            Long userId, LocalDate today, LocalDate eventDate, Long excludeTaskId, BigDecimal hours
+    ) {
+        long excludeId = excludeTaskId == null ? NO_TASK : excludeTaskId;
+        LocalDate first = today.plusDays(1);
+        LocalDate last = today.plusDays(SUGGESTION_WINDOW_DAYS);
+        if (eventDate != null && eventDate.isBefore(last)) {
+            last = eventDate;
+        }
+        if (last.isBefore(first)) {
+            return java.util.Optional.empty();
+        }
+        BigDecimal max = BigDecimal.valueOf(limitOf(userId));
+        Map<LocalDate, BigDecimal> load = new HashMap<>();
+        for (DayLoad day : taskRepository.sumPlannedHoursByDate(userId, first, last, excludeId)) {
+            load.put(day.getDate(), day.getHours());
+        }
+        for (LocalDate day = first; !day.isAfter(last); day = day.plusDays(1)) {
+            if (load.getOrDefault(day, BigDecimal.ZERO).add(hours).compareTo(max) <= 0) {
+                return java.util.Optional.of(day);
+            }
+        }
+        return java.util.Optional.empty();
+    }
+
     private int limitOf(Long userId) {
         return appUserRepository.findById(userId)
                 .orElseThrow(() -> new UnauthorizedException("Sesión no válida"))

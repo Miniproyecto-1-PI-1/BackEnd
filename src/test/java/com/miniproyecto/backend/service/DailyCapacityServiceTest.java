@@ -98,6 +98,24 @@ class DailyCapacityServiceTest {
     }
 
     @Test
+    void nextFreeDateIsTheFirstDayFromTomorrowWithRoom() {
+        when(taskRepository.sumPlannedHoursByDate(eq(USER), eq(TODAY.plusDays(1)), eq(EVENT_DATE), eq(TASK)))
+                .thenReturn(List.of(load(TODAY.plusDays(1), "5.00"), load(TODAY.plusDays(2), "4.00")));
+
+        assertThat(service.nextFreeDate(USER, TODAY, EVENT_DATE, TASK, new BigDecimal("3")))
+                .contains(TODAY.plusDays(3));
+    }
+
+    @Test
+    void nextFreeDateIsEmptyWhenEveryDayBeforeTheEventIsFull() {
+        LocalDate eventDate = TODAY.plusDays(2);
+        when(taskRepository.sumPlannedHoursByDate(eq(USER), eq(TODAY.plusDays(1)), eq(eventDate), eq(TASK)))
+                .thenReturn(List.of(load(TODAY.plusDays(1), "6.00"), load(TODAY.plusDays(2), "6.00")));
+
+        assertThat(service.nextFreeDate(USER, TODAY, eventDate, TASK, new BigDecimal("1"))).isEmpty();
+    }
+
+    @Test
     void newTaskIsCheckedWithoutExcludingAnyTask() {
         when(taskRepository.sumPlannedHours(USER, TODAY, -1L)).thenReturn(new BigDecimal("5.00"));
         when(taskRepository.sumPlannedHoursByDate(eq(USER), eq(TODAY), eq(EVENT_DATE), eq(-1L))).thenReturn(List.of());

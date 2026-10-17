@@ -93,6 +93,8 @@ El usuario demo (id 1, `valentina@eventosvv.co`) entra con la contraseña `valen
 | `sql/001_event_type.sql` | Columna `event.type` (tipo de evento, opcional) |
 | `sql/002_demo_user_password.sql` | Contraseña BCrypt del usuario demo (id 1) |
 | `sql/003_user_avatar.sql` | Columna `app_user.avatar` (foto de perfil). **Sin ella el backend no arranca** |
+| `sql/004_daily_hour_limit.sql` | Columna `app_user.daily_hour_limit` (límite diario de horas, 6 por defecto, rango 1–16) |
+| `sql/005_task_note_completed_at.sql` | Columnas `task.note` (nota opcional) y `task.completed_at` (fecha de ejecución). **Sin ellas el backend no arranca** |
 
 ## Endpoints
 
@@ -115,10 +117,43 @@ Todas las rutas aceptan también la barra final (`/api/events/`). La referencia 
 | `DELETE` | `/api/events/{id}` | 204, borra el evento y sus gestiones |
 | `POST` | `/api/events/{id}/tasks` | 201, evento actualizado |
 | `PUT` | `/api/events/{id}/tasks/{taskId}` | 200, evento actualizado |
+| `PATCH` | `/api/events/{id}/tasks/{taskId}/status` | 200, evento actualizado: marcar hecha, posponer (con nota opcional) o reabrir |
 | `DELETE` | `/api/events/{id}/tasks/{taskId}` | 204 |
+| `GET` | `/api/events/{id}/progress` | 200, avance del evento |
+| `GET` | `/api/progress` | 200, avance general y por evento |
 | `GET` | `/api/today?days=&incluirHechas=` | 200, gestiones vencidas/de hoy/próximas del usuario, en orden de prioridad |
 
-**Límite diario y sobrecarga.** Al crear un evento con gestiones, añadir una gestión (`POST .../tasks`) o editarla (`PUT .../tasks/{taskId}`, también para reprogramarla) cuando cambian la fecha, las horas o se reabre una gestión hecha, el backend suma las horas no ejecutadas de ese día y las compara con el límite del usuario (`/api/users/me/planning-preferences`, 6 h por defecto). Si lo supera responde **409** con el formato de error común (`status`, `title: "Conflicto de sobrecarga"`, `detail` con las cifras —«Quedarías con 7h planificadas ese día (tu límite es 6h).»—, `errors: { "dueDate": "..." }`) y un objeto `overload` con `date`, `plannedHours`, `taskHours`, `resultingHours`, `limitHours`, `exceedsBy` (excedente), `availableHours` (horas que sí caben ese día) y hasta tres `suggestedDates`, cada una con su `date` y las `availableHours` libres ese día, donde la gestión sí cabe (vacío al crear un evento nuevo). No se guarda nada mientras haya sobrecarga; se resuelve repitiendo la petición con otra fecha o menos horas. Una fecha nueva anterior a hoy o posterior a la fecha del evento en `PUT` responde 400. `GET /api/today` incluye `eventDate` en cada gestión para que el cliente acote la reprogramación. Marcar una gestión como hecha o cambiar solo nombre o descripción no se revisa.
+**Límite diario y sobrecarga.** Al crear un evento con gestiones, añadir una gestión (`POST .../tasks`) o editarla (`PUT .../tasks/{taskId}`, también para reprogramarla) cuando cambian la fecha, las horas o se reabre una gestión hecha, el backend suma las horas no ejecutadas de ese día y las compara con el límite del usuario (`/api/users/me/planning-preferences`, 6 h por defecto). Si lo supera responde **409** con el formato de error común (`status`, `title: "Conflicto de sobrecarga"`, `detail` con las cifras —«Quedarías con 7h planificadas ese día (tu límite es 6h).»—, `errors: { "dueDate": "..." }`) y un objeto `overload` con `date`, `plannedHours`, `taskHours`, `resultingHours`, `limitHours`, `exceedsBy` (excedente), `availableHours` (horas que sí caben ese día) y hasta tres `suggestedDates`, cada una con su `date` y las `availableHours` libres ese día, donde la gestión sí cabe (vacío al crear un evento nuevo). No se guarda nada mientras haya sobrecarga; se resuelve repitiendo la petición con otra fecha o menos horas. Una fecha nueva anterior a hoy o posterior a la fecha del evento en `PUT` responde 400. `GET /api/today` incluye `eventDate` en cada gestión para que el cliente acote la reprogramación. Marcar una gestión como hecha o cambiar solo nombre o descripción no se revisa. **Cambiar el límite** (`PUT /api/users/me/planning-preferences`) responde **409** con `detail` («No puedes bajar el límite a 4h porque hay 1 día con más de 4h planificadas (el 12 de octubre tiene 5h).») si algún día desde hoy ya supera el nuevo valor, y no lo guarda; se resuelve moviendo o reduciendo gestiones de ese día.
+
+**Registrar avance (`PATCH /api/events/{id}/tasks/{taskId}/status`).** Cambia el estado de una gestión y guarda una nota opcional (máx. 500 caracteres) dentro de la propia gestión (`note`). No exige reenviar el resto de campos.
+
+| Estado | Qué hace |
+|---|---|
+| `DONE` | Marca la gestión como ejecutada, conserva su nota y registra `completedAt`. No revisa el límite diario. |
+| `POSTPONED` | Guarda la nota (si viene) y mueve la gestión: a `dueDate` si viene (mismas reglas que reprogramar: no antes de hoy, no después del evento y, si el día se pasa del límite, 409 con `overload`) o, si no viene, a la **próxima fecha libre** antes del evento (desde mañana). Si ningún día tiene espacio responde 409 sin cambiar nada. |
+| `PENDING` | Reabre la gestión: borra `completedAt` y revisa el límite del día. |
+
+Si `note` no viene, la nota existente se conserva; si viene vacía, se borra.
+
+```
+PATCH /api/events/42/tasks/101/status
+{ "status": "POSTPONED", "note": "Esperando confirmación del salón" }
+
+200 → el evento completo; la gestión ahora trae:
+{ "id": 101, "name": "Confirmar catering", "dueDate": "2026-10-16", "status": "POSTPONED",
+  "note": "Esperando confirmación del salón", "completedAt": null, ... }
+```
+
+Errores: `400` (estado ausente, nota de más de 500 caracteres o fecha inválida, con el formato `{status, title, detail, errors}`), `404` (el evento o la gestión no son del usuario) y `409` (sobrecarga con el objeto `overload`, o no hay un día libre antes del evento).
+
+**Progreso (`GET /api/progress` y `GET /api/events/{id}/progress`).** Cuenta las gestiones en categorías que no se solapan: `done` (ejecutadas), `overdue` (no ejecutadas con fecha anterior a hoy), `postponed` (pospuestas con fecha de hoy o futura) y `pending` (el resto); `total` es su suma y `percent = done * 100 / total` redondeado (0 si no hay gestiones). El general trae además `events` con el mismo desglose por evento, ordenado por fecha.
+
+```
+GET /api/progress
+{ "total": 8, "done": 3, "pending": 2, "postponed": 1, "overdue": 2, "percent": 38,
+  "events": [ { "id": 42, "name": "Boda Andrea y Julián", "date": "2026-11-20",
+                "total": 8, "done": 3, "pending": 2, "postponed": 1, "overdue": 2, "percent": 38 } ] }
+```
 
 `GET /api/today` reúne en una sola lista las gestiones no ejecutadas de todos los eventos del usuario, clasificadas en `OVERDUE` (vencidas), `TODAY` (hoy) o `UPCOMING` (próximas dentro de la ventana), ordenadas por fecha límite y, en caso de empate, por menor esfuerzo estimado. `days` (por defecto 7, máximo 60) define hasta cuántos días a futuro se incluyen en `UPCOMING`; valores fuera de rango se ajustan al límite más cercano. `incluirHechas=true` agrega también las gestiones con estado `DONE`, excluidas por defecto.
 

@@ -54,6 +54,7 @@ class TaskRepositoryQueriesTest {
         other = newUser("b@x.co");
         event = newEvent(user, "Boda");
         mine = newTask(event, "Reservar salón", DAY, "4.00", TaskStatus.PENDING);
+        mine.setNote("Esperando confirmación del salón");
         newTask(event, "Catering", DAY, "2.50", TaskStatus.POSTPONED);
         newTask(event, "Ya hecha", DAY, "3.00", TaskStatus.DONE);
         newTask(event, "Otro día", DAY.plusDays(1), "1.00", TaskStatus.PENDING);
@@ -121,12 +122,49 @@ class TaskRepositoryQueriesTest {
     }
 
     @Test
+    void findDaysOverLimitReturnsOnlyMyDaysAboveTheLimitInOrder() {
+        newTask(event, "Más carga", DAY.plusDays(1), "5.00", TaskStatus.PENDING);
+        newTask(event, "Día pasado", DAY.minusDays(3), "8.00", TaskStatus.PENDING);
+        em.flush();
+        em.clear();
+
+        List<DayLoad> days = taskRepository.findDaysOverLimit(user.getId(), DAY, new BigDecimal("5"));
+
+        assertThat(days).extracting(DayLoad::getDate).containsExactly(DAY, DAY.plusDays(1));
+        assertThat(days.get(0).getHours()).isEqualByComparingTo("6.50");
+        assertThat(days.get(1).getHours()).isEqualByComparingTo("6.00");
+    }
+
+    @Test
+    void findDaysOverLimitDoesNotCountADayThatEqualsTheLimit() {
+        assertThat(taskRepository.findDaysOverLimit(user.getId(), DAY, new BigDecimal("6.50"))).isEmpty();
+    }
+
+    @Test
     void findTodayTasksIncludesTheEventDate() {
         List<TaskTodayView> tasks = taskRepository.findTodayTasks(user.getId(), DAY.plusDays(1), false);
 
         assertThat(tasks).hasSize(3);
         assertThat(tasks).allSatisfy(t -> assertThat(t.getEventDate()).isEqualTo(DAY.plusDays(20)));
         assertThat(tasks).extracting(TaskTodayView::getName).doesNotContain("Ya hecha", "De otro usuario");
+    }
+
+    @Test
+    void findTodayTasksCarriesTheNote() {
+        List<TaskTodayView> tasks = taskRepository.findTodayTasks(user.getId(), DAY.plusDays(1), false);
+
+        assertThat(tasks).filteredOn(t -> t.getName().equals("Reservar salón"))
+                .singleElement().extracting(TaskTodayView::getNote).isEqualTo("Esperando confirmación del salón");
+    }
+
+    @Test
+    void findProgressRowsReturnsOnlyMyTasksWithStatusAndDate() {
+        var rows = taskRepository.findProgressRows(user.getId());
+
+        assertThat(rows).hasSize(4);
+        assertThat(rows).extracting(r -> r.getEventId()).containsOnly(event.getId());
+        assertThat(rows).extracting(r -> r.getStatus())
+                .containsExactlyInAnyOrder(TaskStatus.PENDING, TaskStatus.POSTPONED, TaskStatus.DONE, TaskStatus.PENDING);
     }
 
     @Test

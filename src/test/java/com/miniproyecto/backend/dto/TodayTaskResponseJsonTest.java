@@ -17,7 +17,7 @@ class TodayTaskResponseJsonTest {
         TodayTaskResponse task = new TodayTaskResponse(
                 1L, "Reservar salón", null, TaskStatus.PENDING, new BigDecimal("4.00"), LocalDate.of(2026, 10, 9),
                 LocalTime.of(9, 0), LocalTime.of(13, 0), TodayCategory.UPCOMING, 1, 5L, "Boda",
-                LocalDate.of(2026, 11, 7), null);
+                LocalDate.of(2026, 11, 7), null, null);
 
         String json = JsonMapper.builder().build().writeValueAsString(task);
 

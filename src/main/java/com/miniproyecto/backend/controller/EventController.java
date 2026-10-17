@@ -4,6 +4,7 @@ import com.miniproyecto.backend.dto.CreateEventRequest;
 import com.miniproyecto.backend.dto.EventDetailResponse;
 import com.miniproyecto.backend.dto.EventSummaryResponse;
 import com.miniproyecto.backend.dto.OverloadConflictResponse;
+import com.miniproyecto.backend.dto.TaskStatusRequest;
 import com.miniproyecto.backend.service.EventService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -18,6 +19,7 @@ import com.miniproyecto.backend.dto.TaskRequest;
 import com.miniproyecto.backend.dto.UpdateEventRequest;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -108,6 +110,23 @@ public class EventController {
             @Valid @RequestBody TaskRequest request
     ) {
         return eventService.updateTask(id, taskId, request);
+    }
+
+    @Operation(summary = "Registrar avance: marcar una gestión como hecha o pospuesta (con nota opcional)",
+            description = "DONE guarda la gestión como ejecutada (conserva su nota y registra completedAt). "
+                    + "POSTPONED guarda la nota opcional y mueve la gestión: a dueDate si viene (mismas reglas que "
+                    + "reprogramar, con el 409 de sobrecarga) o, si no viene, a la próxima fecha libre antes del "
+                    + "evento. PENDING la reabre. Devuelve el evento actualizado con su progreso.")
+    @ApiResponse(responseCode = "400", description = "Estado ausente, nota de más de 500 caracteres o fecha inválida")
+    @ApiResponse(responseCode = "404", description = "El evento o la gestión no existen o no son del usuario")
+    @ApiResponse(responseCode = "409", description = "Sobrecarga diaria (incluye el objeto overload) o no hay un día libre antes del evento")
+    @PatchMapping("/{id}/tasks/{taskId}/status")
+    public EventDetailResponse changeTaskStatus(
+            @PathVariable Long id,
+            @PathVariable Long taskId,
+            @Valid @RequestBody TaskStatusRequest request
+    ) {
+        return eventService.changeTaskStatus(id, taskId, request);
     }
 
     @Operation(summary = "Eliminar una gestión")
