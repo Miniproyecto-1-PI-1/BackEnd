@@ -66,6 +66,7 @@ public class UserController {
     @Operation(summary = "Actualizar el límite diario de horas de gestión (entre 1 y 16)")
     @ApiResponse(responseCode = "200", description = "Límite actualizado")
     @ApiResponse(responseCode = "400", description = "El valor está fuera del rango 1–16")
+    @ApiResponse(responseCode = "409", description = "Algún día planificado (desde hoy) ya supera el nuevo límite")
     @PutMapping("/planning-preferences")
     public DailyLimitResponse updateDailyLimit(@Valid @RequestBody UpdateDailyLimitRequest request) {
         return userService.updateDailyLimit(request);

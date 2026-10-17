@@ -69,6 +69,22 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
             @Param("to") LocalDate to,
             @Param("excludeId") Long excludeId);
 
+    /** Días desde {@code from} cuyas horas planificadas (no hechas) superan {@code limit}, del más próximo al más lejano. */
+    @Query("""
+            SELECT t.dueDate AS date, SUM(t.estimatedHours) AS hours
+            FROM Task t JOIN t.event e
+            WHERE e.user.id = :userId
+              AND t.dueDate >= :from
+              AND t.status <> com.miniproyecto.backend.entity.TaskStatus.DONE
+            GROUP BY t.dueDate
+            HAVING SUM(t.estimatedHours) > :limit
+            ORDER BY t.dueDate ASC
+            """)
+    List<DayLoad> findDaysOverLimit(
+            @Param("userId") Long userId,
+            @Param("from") LocalDate from,
+            @Param("limit") BigDecimal limit);
+
     interface DayLoad {
         LocalDate getDate();
         BigDecimal getHours();

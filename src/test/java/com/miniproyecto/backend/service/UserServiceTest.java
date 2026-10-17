@@ -14,6 +14,8 @@ import com.miniproyecto.backend.exception.FieldErrorException;
 import com.miniproyecto.backend.repository.AppUserRepository;
 import com.miniproyecto.backend.repository.ClientRepository;
 import com.miniproyecto.backend.repository.EventRepository;
+import com.miniproyecto.backend.repository.TaskRepository;
+import com.miniproyecto.backend.repository.TaskRepository.DayLoad;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,6 +53,9 @@ class UserServiceTest {
     @Mock
     private ClientRepository clientRepository;
 
+    @Mock
+    private TaskRepository taskRepository;
+
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(4);
 
     private UserService userService;
@@ -59,7 +64,7 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(appUserRepository, eventRepository, clientRepository, passwordEncoder);
+        userService = new UserService(appUserRepository, eventRepository, clientRepository, taskRepository, passwordEncoder);
 
         user = new AppUser();
         user.setId(1L);
