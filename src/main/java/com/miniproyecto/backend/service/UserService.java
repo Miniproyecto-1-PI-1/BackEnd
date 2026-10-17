@@ -14,11 +14,18 @@ import com.miniproyecto.backend.exception.UnauthorizedException;
 import com.miniproyecto.backend.repository.AppUserRepository;
 import com.miniproyecto.backend.repository.ClientRepository;
 import com.miniproyecto.backend.repository.EventRepository;
+import com.miniproyecto.backend.repository.TaskRepository;
+import com.miniproyecto.backend.repository.TaskRepository.DayLoad;
 import com.miniproyecto.backend.security.CurrentUser;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 @Service
@@ -33,17 +40,20 @@ public class UserService {
     private final AppUserRepository appUserRepository;
     private final EventRepository eventRepository;
     private final ClientRepository clientRepository;
+    private final TaskRepository taskRepository;
     private final PasswordEncoder passwordEncoder;
 
     public UserService(
             AppUserRepository appUserRepository,
             EventRepository eventRepository,
             ClientRepository clientRepository,
+            TaskRepository taskRepository,
             PasswordEncoder passwordEncoder
     ) {
         this.appUserRepository = appUserRepository;
         this.eventRepository = eventRepository;
         this.clientRepository = clientRepository;
+        this.taskRepository = taskRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -100,8 +110,23 @@ public class UserService {
     @Transactional
     public DailyLimitResponse updateDailyLimit(UpdateDailyLimitRequest request) {
         AppUser user = currentUser();
+        ensureNoDayExceeds(user.getId(), request.dailyLimitHours());
         user.setDailyHourLimit(request.dailyLimitHours());
         return new DailyLimitResponse(appUserRepository.save(user).getDailyHourLimit());
+    }
+
+    /** El nuevo límite no puede dejar por encima ningún día (de hoy en adelante) que ya tenga más horas planificadas. */
+    private void ensureNoDayExceeds(Long userId, int newLimit) {
+        List<DayLoad> days = taskRepository.findDaysOverLimit(userId, LocalDate.now(), BigDecimal.valueOf(newLimit));
+        if (days.isEmpty()) {
+            return;
+        }
+        DayLoad first = days.get(0);
+        String quantity = days.size() == 1 ? "hay 1 día" : "hay " + days.size() + " días";
+        String date = first.getDate().format(DateTimeFormatter.ofPattern("d 'de' MMMM", Locale.forLanguageTag("es-CO")));
+        throw new ConflictException("No puedes bajar el límite a " + newLimit + "h porque " + quantity
+                + " con más de " + newLimit + "h planificadas (el " + date + " tiene "
+                + first.getHours().stripTrailingZeros().toPlainString() + "h).");
     }
 
     /** Borra la cuenta con todos sus eventos (y gestiones, por cascada) y clientes. */

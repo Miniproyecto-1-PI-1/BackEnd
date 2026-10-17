@@ -35,3 +35,4 @@ build/
 ### Local secrets / overrides ###
 .env
 application-local.properties
+env

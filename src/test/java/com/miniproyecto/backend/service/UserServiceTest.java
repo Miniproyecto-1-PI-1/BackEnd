@@ -14,6 +14,8 @@ import com.miniproyecto.backend.exception.FieldErrorException;
 import com.miniproyecto.backend.repository.AppUserRepository;
 import com.miniproyecto.backend.repository.ClientRepository;
 import com.miniproyecto.backend.repository.EventRepository;
+import com.miniproyecto.backend.repository.TaskRepository;
+import com.miniproyecto.backend.repository.TaskRepository.DayLoad;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,6 +29,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -51,6 +55,9 @@ class UserServiceTest {
     @Mock
     private ClientRepository clientRepository;
 
+    @Mock
+    private TaskRepository taskRepository;
+
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(4);
 
     private UserService userService;
@@ -59,7 +66,7 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(appUserRepository, eventRepository, clientRepository, passwordEncoder);
+        userService = new UserService(appUserRepository, eventRepository, clientRepository, taskRepository, passwordEncoder);
 
         user = new AppUser();
         user.setId(1L);
@@ -99,6 +106,49 @@ class UserServiceTest {
 
         assertThat(response.dailyLimitHours()).isEqualTo(9);
         assertThat(user.getDailyHourLimit()).isEqualTo(9);
+    }
+
+    private static DayLoad load(LocalDate date, String hours) {
+        return new DayLoad() {
+            @Override public LocalDate getDate() { return date; }
+            @Override public BigDecimal getHours() { return new BigDecimal(hours); }
+        };
+    }
+
+    @Test
+    void updateDailyLimitIsRejectedWhenSomeDayAlreadyExceedsTheNewLimit() {
+        LocalDate day = LocalDate.of(2026, 10, 12);
+        when(taskRepository.findDaysOverLimit(any(), any(), any())).thenReturn(List.of(load(day, "5.00")));
+
+        assertThatThrownBy(() -> userService.updateDailyLimit(new UpdateDailyLimitRequest(4)))
+                .isInstanceOf(ConflictException.class)
+                .hasMessage("No puedes bajar el límite a 4h porque hay 1 día con más de 4h planificadas "
+                        + "(el 12 de octubre tiene 5h).");
+
+        verify(appUserRepository, never()).save(any(AppUser.class));
+        assertThat(user.getDailyHourLimit()).isEqualTo(6);
+    }
+
+    @Test
+    void updateDailyLimitCountsAllTheDaysThatExceedTheNewLimit() {
+        when(taskRepository.findDaysOverLimit(any(), any(), any())).thenReturn(List.of(
+                load(LocalDate.of(2026, 10, 12), "5.50"), load(LocalDate.of(2026, 10, 14), "7.00")));
+
+        assertThatThrownBy(() -> userService.updateDailyLimit(new UpdateDailyLimitRequest(5)))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("hay 2 días con más de 5h")
+                .hasMessageContaining("el 12 de octubre tiene 5.5h");
+    }
+
+    @Test
+    void updateDailyLimitChecksTheDaysFromTodayAgainstTheNewLimit() {
+        stubSave();
+        when(taskRepository.findDaysOverLimit(any(), any(), any())).thenReturn(List.of());
+
+        userService.updateDailyLimit(new UpdateDailyLimitRequest(5));
+
+        verify(taskRepository).findDaysOverLimit(1L, LocalDate.now(), BigDecimal.valueOf(5));
+        assertThat(user.getDailyHourLimit()).isEqualTo(5);
     }
 
     @Test

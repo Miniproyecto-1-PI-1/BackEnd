@@ -122,6 +122,25 @@ class TaskRepositoryQueriesTest {
     }
 
     @Test
+    void findDaysOverLimitReturnsOnlyMyDaysAboveTheLimitInOrder() {
+        newTask(event, "Más carga", DAY.plusDays(1), "5.00", TaskStatus.PENDING);
+        newTask(event, "Día pasado", DAY.minusDays(3), "8.00", TaskStatus.PENDING);
+        em.flush();
+        em.clear();
+
+        List<DayLoad> days = taskRepository.findDaysOverLimit(user.getId(), DAY, new BigDecimal("5"));
+
+        assertThat(days).extracting(DayLoad::getDate).containsExactly(DAY, DAY.plusDays(1));
+        assertThat(days.get(0).getHours()).isEqualByComparingTo("6.50");
+        assertThat(days.get(1).getHours()).isEqualByComparingTo("6.00");
+    }
+
+    @Test
+    void findDaysOverLimitDoesNotCountADayThatEqualsTheLimit() {
+        assertThat(taskRepository.findDaysOverLimit(user.getId(), DAY, new BigDecimal("6.50"))).isEmpty();
+    }
+
+    @Test
     void findTodayTasksIncludesTheEventDate() {
         List<TaskTodayView> tasks = taskRepository.findTodayTasks(user.getId(), DAY.plusDays(1), false);
 
