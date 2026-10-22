@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -117,9 +118,27 @@ public class EventController {
                     + "POSTPONED guarda la nota opcional y mueve la gestión: a dueDate si viene (mismas reglas que "
                     + "reprogramar, con el 409 de sobrecarga) o, si no viene, a la próxima fecha libre antes del "
                     + "evento. PENDING la reabre. Devuelve el evento actualizado con su progreso.")
-    @ApiResponse(responseCode = "400", description = "Estado ausente, nota de más de 500 caracteres o fecha inválida")
+    @ApiResponse(responseCode = "400", description = "Estado ausente, nota de más de 500 caracteres o fecha inválida",
+            content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                    {"status": 400, "title": "Solicitud inválida", "detail": "Revisa los campos marcados",
+                     "errors": {"status": "El estado es obligatorio."}}""")))
     @ApiResponse(responseCode = "404", description = "El evento o la gestión no existen o no son del usuario")
-    @ApiResponse(responseCode = "409", description = "Sobrecarga diaria (incluye el objeto overload) o no hay un día libre antes del evento")
+    @ApiResponse(responseCode = "409", description = "Sobrecarga diaria (incluye el objeto overload) o no hay un día libre antes del evento",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = OverloadConflictResponse.class),
+                    examples = {
+                            @ExampleObject(name = "Sobrecarga diaria", value = """
+                                    {"status": 409, "title": "Conflicto de sobrecarga",
+                                     "detail": "Quedarías con 7h planificadas ese día (tu límite es 6h).",
+                                     "errors": {"dueDate": "Quedarías con 7h planificadas ese día (tu límite es 6h)."},
+                                     "overload": {"date": "2026-10-15", "plannedHours": 4, "taskHours": 3, "resultingHours": 7,
+                                      "limitHours": 6, "exceedsBy": 1, "availableHours": 2,
+                                      "suggestedDates": [{"date": "2026-10-16", "availableHours": 6},
+                                                         {"date": "2026-10-17", "availableHours": 3}]}}"""),
+                            @ExampleObject(name = "Sin día libre", value = """
+                                    {"status": 409, "title": "Conflicto",
+                                     "detail": "No hay un día libre antes del evento para «Confirmar catering». Reduce sus horas o elige una fecha.",
+                                     "errors": {}}""")
+                    }))
     @PatchMapping("/{id}/tasks/{taskId}/status")
     public EventDetailResponse changeTaskStatus(
             @PathVariable Long id,

@@ -44,7 +44,7 @@ public class OpenApiConfig {
     public OpenAPI openApi() {
         OpenAPI openApi = new OpenAPI().info(new Info()
                 .title("Organizador de Eventos Independientes — API")
-                .version("Sprint 3")
+                .version("Sprint 4")
                 .description("Eventos y gestiones del Miniproyecto 1 (Proyecto Integrador I). "
                         + "Todos los errores comparten la forma ApiErrorResponse. "
                         + "Salvo /api/auth/register, /api/auth/login y /api/health, las rutas exigen "
@@ -62,8 +62,8 @@ public class OpenApiConfig {
      * Completa las respuestas de error que devuelven GlobalExceptionHandler y el entry point de seguridad:
      * 400 si hay body, path o query params; 401 si la ruta exige token; 404 si hay id.
      * No pisa las descripciones declaradas con @ApiResponse; a todo 4xx/5xx le pone el esquema ApiErrorResponse
-     * con un ejemplo propio de su código,
-     * salvo al 409 que declara OverloadConflictResponse.
+     * con un ejemplo propio de su código, salvo si la anotación ya declara ejemplos o un esquema de error
+     * (como el 409 de sobrecarga): ahí respeta lo declarado y solo completa el esquema si falta.
      */
     @Bean
     public OperationCustomizer errorResponses() {
@@ -85,7 +85,14 @@ public class OpenApiConfig {
                 responses.putIfAbsent("404", new ApiResponse().description("Evento o gestión no encontrados"));
             }
             responses.forEach((code, response) -> {
-                if ((code.startsWith("4") || code.startsWith("5")) && !hasOwnErrorSchema(response)) {
+                if (!code.startsWith("4") && !code.startsWith("5")) {
+                    return;
+                }
+                if (hasDeclaredContent(response)) {
+                    response.getContent().values().stream()
+                            .filter(media -> !isErrorSchema(media.getSchema()))
+                            .forEach(media -> media.setSchema(errorSchemaRef()));
+                } else {
                     response.setContent(errorContent(code));
                 }
             });
@@ -97,17 +104,29 @@ public class OpenApiConfig {
         return Arrays.stream(handlerMethod.getMethodParameters()).anyMatch(p -> p.hasParameterAnnotation(annotation));
     }
 
-    /** Respeta el esquema de error propio declarado en @ApiResponse(content = ...), como el 409 de sobrecarga. */
-    private static boolean hasOwnErrorSchema(ApiResponse response) {
+    /**
+     * Content declarado en @ApiResponse(content = ...): trae ejemplos o un esquema de error propio.
+     * Sin anotación, springdoc rellena el content con el tipo de retorno del método; ese sí se reemplaza.
+     */
+    private static boolean hasDeclaredContent(ApiResponse response) {
         return response.getContent() != null && response.getContent().values().stream()
-                .map(MediaType::getSchema)
-                .anyMatch(schema -> schema != null && schema.get$ref() != null
-                        && schema.get$ref().endsWith("/" + OVERLOAD_SCHEMA));
+                .anyMatch(media -> media.getExample() != null
+                        || (media.getExamples() != null && !media.getExamples().isEmpty())
+                        || isErrorSchema(media.getSchema()));
+    }
+
+    private static boolean isErrorSchema(Schema<?> schema) {
+        return schema != null && schema.get$ref() != null
+                && (schema.get$ref().endsWith("/" + ERROR_SCHEMA) || schema.get$ref().endsWith("/" + OVERLOAD_SCHEMA));
+    }
+
+    private static Schema<?> errorSchemaRef() {
+        return new Schema<>().$ref("#/components/schemas/" + ERROR_SCHEMA);
     }
 
     private static Content errorContent(String code) {
-        Schema<?> ref = new Schema<>().$ref("#/components/schemas/" + ERROR_SCHEMA);
-        return new Content().addMediaType("application/json", new MediaType().schema(ref).example(ERROR_EXAMPLES.get(code)));
+        return new Content().addMediaType("application/json",
+                new MediaType().schema(errorSchemaRef()).example(ERROR_EXAMPLES.get(code)));
     }
 
     private static Map<String, Object> errorExample(int status, String title, String detail, Map<String, String> errors) {
