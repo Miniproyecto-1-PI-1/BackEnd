@@ -68,6 +68,7 @@ Para correr las pruebas:
 | `DB_PASSWORD` | Contraseña de la base de datos |
 | `PORT` | Puerto HTTP (por defecto `8080`) |
 | `JWT_SECRET` | Clave para firmar los JWT (HS256), mínimo 32 caracteres. Genera una con `openssl rand -base64 48` |
+| `APP_TIMEZONE` | Opcional. Zona horaria con la que se calcula "hoy" (por defecto `America/Bogota`) |
 
 No guardes credenciales reales en el repositorio. Usa variables de entorno o un archivo local ignorado (`.env` / `application-local.properties`).
 
