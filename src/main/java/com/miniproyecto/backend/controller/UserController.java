@@ -9,6 +9,8 @@ import com.miniproyecto.backend.dto.UpdateDailyLimitRequest;
 import com.miniproyecto.backend.dto.UserResponse;
 import com.miniproyecto.backend.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -66,7 +68,11 @@ public class UserController {
     @Operation(summary = "Actualizar el límite diario de horas de gestión (entre 1 y 16)")
     @ApiResponse(responseCode = "200", description = "Límite actualizado")
     @ApiResponse(responseCode = "400", description = "El valor está fuera del rango 1–16")
-    @ApiResponse(responseCode = "409", description = "Algún día planificado (desde hoy) ya supera el nuevo límite")
+    @ApiResponse(responseCode = "409", description = "Algún día planificado (desde hoy) ya supera el nuevo límite",
+            content = @Content(mediaType = "application/json", examples = @ExampleObject(value = """
+                    {"status": 409, "title": "Conflicto",
+                     "detail": "No puedes bajar el límite a 4h porque hay 1 día con más de 4h planificadas (el 12 de octubre tiene 5h).",
+                     "errors": {}}""")))
     @PutMapping("/planning-preferences")
     public DailyLimitResponse updateDailyLimit(@Valid @RequestBody UpdateDailyLimitRequest request) {
         return userService.updateDailyLimit(request);
