@@ -435,6 +435,39 @@ class EventServiceTest {
     }
 
     @Test
+    void changeTaskStatus_postponeWithoutDateOfAFutureTaskSearchesFromItsOwnDate() {
+        Event event = event(10L);
+        Task existing = existingTask(event, 5L);
+        LocalDate due = LocalDate.now().plusDays(5);
+        existing.setDueDate(due);
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        when(eventRepository.save(event)).thenReturn(event);
+        when(capacityService.nextFreeDate(eq(1L), eq(due), any(), eq(5L), any()))
+                .thenReturn(Optional.of(due.plusDays(1)));
+
+        eventService.changeTaskStatus(10L, 5L, new TaskStatusRequest(TaskStatus.POSTPONED, null, null));
+
+        assertThat(existing.getDueDate()).isEqualTo(due.plusDays(1));
+        verify(capacityService).nextFreeDate(eq(1L), eq(due), any(), eq(5L), any());
+    }
+
+    @Test
+    void changeTaskStatus_postponeWithoutDateOfAnOverdueTaskSearchesFromToday() {
+        Event event = event(10L);
+        Task existing = existingTask(event, 5L);
+        existing.setDueDate(LocalDate.now().minusDays(2));
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        when(eventRepository.save(event)).thenReturn(event);
+        when(capacityService.nextFreeDate(eq(1L), eq(LocalDate.now()), any(), eq(5L), any()))
+                .thenReturn(Optional.of(LocalDate.now().plusDays(1)));
+
+        eventService.changeTaskStatus(10L, 5L, new TaskStatusRequest(TaskStatus.POSTPONED, null, null));
+
+        assertThat(existing.getDueDate()).isEqualTo(LocalDate.now().plusDays(1));
+        verify(capacityService).nextFreeDate(eq(1L), eq(LocalDate.now()), any(), eq(5L), any());
+    }
+
+    @Test
     void changeTaskStatus_postponeWithoutDateMovesToTheNextFreeDate() {
         Event event = event(10L);
         Task existing = existingTask(event, 5L);
