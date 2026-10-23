@@ -174,9 +174,12 @@ public class EventService {
 
         LocalDate newDate = task.getDueDate();
         if (target == TaskStatus.POSTPONED) {
+            // Sin fecha, se busca desde el día siguiente a la fecha actual de la gestión (o desde mañana si ya
+            // pasó), para que posponer nunca la adelante.
+            LocalDate searchFrom = task.getDueDate().isAfter(LocalDate.now()) ? task.getDueDate() : LocalDate.now();
             newDate = request.dueDate() != null
                     ? request.dueDate()
-                    : capacityService.nextFreeDate(CurrentUser.id(), LocalDate.now(), event.getEventDate(),
+                    : capacityService.nextFreeDate(CurrentUser.id(), searchFrom, event.getEventDate(),
                                     task.getId(), task.getEstimatedHours())
                             .orElseThrow(() -> new ConflictException("No hay un día libre antes del evento para «"
                                     + task.getName() + "». Reduce sus horas o elige una fecha."));
