@@ -130,7 +130,7 @@ Todas las rutas aceptan también la barra final (`/api/events/`). La referencia 
 | Estado | Qué hace |
 |---|---|
 | `DONE` | Marca la gestión como ejecutada, conserva su nota y registra `completedAt`. No revisa el límite diario. |
-| `POSTPONED` | Guarda la nota (si viene) y mueve la gestión: a `dueDate` si viene (mismas reglas que reprogramar: no antes de hoy, no después del evento y, si el día se pasa del límite, 409 con `overload`) o, si no viene, a la **próxima fecha libre** antes del evento, contando desde el día siguiente a su fecha actual (o desde mañana si ya pasó), así que posponer nunca la adelanta. Si ningún día tiene espacio responde 409 sin cambiar nada. |
+| `POSTPONED` | Guarda la nota (si viene) y mueve la gestión: a `dueDate` si viene (mismas reglas que reprogramar: no antes de hoy, no después del evento y, si el día se pasa del límite, 409 con `overload`) o, si no viene, a la **próxima fecha libre** antes del evento, contando desde el día siguiente a su fecha actual (o desde mañana si ya pasó), así que posponer nunca la adelanta. Por lo mismo, las `suggestedDates` de un 409 al posponer empiezan el día siguiente a la fecha actual de la gestión (o mañana si ya pasó). Si ningún día tiene espacio responde 409 sin cambiar nada. |
 | `PENDING` | Reabre la gestión: borra `completedAt` y revisa el límite del día. |
 
 Si `note` no viene, la nota existente se conserva; si viene vacía, se borra.
