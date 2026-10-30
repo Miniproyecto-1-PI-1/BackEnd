@@ -8,7 +8,37 @@ Proyecto del Miniproyecto 1 de Proyecto Integrador I (Universidad del Valle), de
 **API:** https://backend-h0fc.onrender.com · **Swagger UI:** [`/swagger-ui.html`](https://backend-h0fc.onrender.com/swagger-ui.html) · **OpenAPI:** [`/v3/api-docs`](https://backend-h0fc.onrender.com/v3/api-docs)
 **Frontend:** [Miniproyecto-1-PI-1/FrontEnd](https://github.com/Miniproyecto-1-PI-1/FrontEnd)
 
+> **Cuenta demo:** `danna@gmail.com` / `Danna.2026` — ya tiene eventos y tareas de prueba (vencidas, de hoy, próximas, pospuestas y hechas).
+
 > **Nota:** el backend está desplegado en el plan gratuito de Render, que se suspende tras un rato sin tráfico. La primera petición puede tardar cerca de un minuto mientras el servidor arranca; después responde con normalidad.
+
+## Cómo probar la API
+
+1. Despierta el servidor abriendo https://backend-h0fc.onrender.com/api/health hasta que responda `{"status":"ok"}`.
+2. Abre Swagger UI: https://backend-h0fc.onrender.com/swagger-ui.html
+3. En **Autenticación** → `POST /api/auth/login` pulsa **Try it out**, envía este cuerpo y copia el `token` de la respuesta:
+
+   ```json
+   { "email": "danna@gmail.com", "password": "Danna.2026" }
+   ```
+
+4. Pulsa **Authorize** (arriba a la derecha), pega el token **sin** el prefijo `Bearer` y confirma.
+5. Ya puedes llamar las rutas protegidas, por ejemplo:
+   - `GET /api/today`: tareas vencidas, de hoy y próximas.
+   - `GET /api/progress`: avance general y por evento.
+   - `PATCH /api/events/{id}/tasks/{taskId}/status` con `{ "status": "DONE" }`: marca una tarea como hecha.
+   - `PUT /api/events/{id}/tasks/{taskId}` con una `dueDate` en un día que ya está lleno: responde **409** «Conflicto de sobrecarga» con el objeto `overload` (ver [Límite diario y sobrecarga](#endpoints)).
+
+Con `curl`:
+
+```bash
+API=https://backend-h0fc.onrender.com
+TOKEN=$(curl -s -X POST $API/api/auth/login -H 'Content-Type: application/json' \
+  -d '{"email":"danna@gmail.com","password":"Danna.2026"}' | jq -r .token)
+curl -s $API/api/events -H "Authorization: Bearer $TOKEN" | jq
+```
+
+Si vas a modificar datos, mejor crea tu propia cuenta con `POST /api/auth/register` para no alterar la cuenta demo.
 
 ## Stack
 
@@ -82,7 +112,7 @@ Authorization: Bearer <token>
 
 Cada usuario solo ve y modifica sus propios eventos. Sin token, o con un token inválido o vencido, la respuesta es 401.
 
-El usuario demo (id 1, `valentina@eventosvv.co`) entra con la contraseña `valentina123` tras ejecutar `sql/002_demo_user_password.sql`.
+La cuenta demo de producción es `danna@gmail.com` / `Danna.2026`. En una base de datos nueva, `sql/002_demo_user_password.sql` deja además un usuario semilla (id 1, `valentina@eventosvv.co` / `valentina123`).
 
 ## Migraciones manuales
 
@@ -91,7 +121,7 @@ El usuario demo (id 1, `valentina@eventosvv.co`) entra con la contraseña `valen
 | Script | Cambio |
 | --- | --- |
 | `sql/001_event_type.sql` | Columna `event.type` (tipo de evento, opcional) |
-| `sql/002_demo_user_password.sql` | Contraseña BCrypt del usuario demo (id 1) |
+| `sql/002_demo_user_password.sql` | Contraseña BCrypt del usuario semilla (id 1) |
 | `sql/003_user_avatar.sql` | Columna `app_user.avatar` (foto de perfil). **Sin ella el backend no arranca** |
 | `sql/004_daily_hour_limit.sql` | Columna `app_user.daily_hour_limit` (límite diario de horas, 6 por defecto, rango 1–16) |
 | `sql/005_task_note_completed_at.sql` | Columnas `task.note` (nota opcional) y `task.completed_at` (fecha de ejecución). **Sin ellas el backend no arranca** |
