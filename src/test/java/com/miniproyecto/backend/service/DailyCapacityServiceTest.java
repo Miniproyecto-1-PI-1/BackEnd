@@ -98,6 +98,23 @@ class DailyCapacityServiceTest {
     }
 
     @Test
+    void suggestionsStartFromTheGivenDayAndNeverBefore() {
+        // Posponer una gestión que está en hoy+8 a hoy+10: las sugerencias empiezan en hoy+9.
+        LocalDate from = TODAY.plusDays(9);
+        LocalDate target = TODAY.plusDays(10);
+        when(taskRepository.sumPlannedHours(USER, target, TASK)).thenReturn(new BigDecimal("4.00"));
+        when(taskRepository.sumPlannedHoursByDate(eq(USER), eq(from), eq(EVENT_DATE), eq(TASK)))
+                .thenReturn(List.of(load(target, "4.00")));
+
+        assertThatThrownBy(() -> service.ensureFits(USER, from, target, new BigDecimal("3"), TASK, EVENT_DATE))
+                .isInstanceOfSatisfying(OverloadConflictException.class, ex -> {
+                    assertThat(ex.getSuggestedDates()).extracting(SuggestedDate::date).containsExactly(
+                            TODAY.plusDays(9), TODAY.plusDays(11), TODAY.plusDays(12));
+                    assertThat(ex.getSuggestedDates()).allSatisfy(d -> assertThat(d.date()).isAfterOrEqualTo(from));
+                });
+    }
+
+    @Test
     void nextFreeDateIsTheFirstDayFromTomorrowWithRoom() {
         when(taskRepository.sumPlannedHoursByDate(eq(USER), eq(TODAY.plusDays(1)), eq(EVENT_DATE), eq(TASK)))
                 .thenReturn(List.of(load(TODAY.plusDays(1), "5.00"), load(TODAY.plusDays(2), "4.00")));
