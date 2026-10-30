@@ -40,6 +40,8 @@ curl -s $API/api/events -H "Authorization: Bearer $TOKEN" | jq
 
 Si vas a modificar datos, mejor crea tu propia cuenta con `POST /api/auth/register` para no alterar la cuenta demo.
 
+![Swagger UI en producción](docs/screenshots/swagger.png)
+
 ## Stack
 
 | Capa | Tecnología |
@@ -72,7 +74,7 @@ sql/              Migraciones manuales (ver más abajo)
 Requisitos: Java 21 y una base de datos PostgreSQL (o el proyecto de Supabase).
 
 1. Crea un archivo `.env` (o define las variables en tu entorno) con los valores de la sección [Variables de entorno](#variables-de-entorno).
-2. Ejecuta las migraciones de `sql/` sobre la base de datos (ver [Migraciones manuales](#migraciones-manuales)).
+2. Ejecuta los scripts de `sql/` en orden sobre la base de datos: en una base vacía, `000_schema.sql` crea las 4 tablas y `001`…`005` agregan el resto (ver [Migraciones manuales](#migraciones-manuales)).
 3. Levanta el servidor:
 
 ```bash
@@ -120,6 +122,7 @@ La cuenta demo de producción es `danna@gmail.com` / `Danna.2026`. En una base d
 
 | Script | Cambio |
 | --- | --- |
+| `sql/000_schema.sql` | Esquema base: tablas `app_user`, `client`, `event` y `task` como estaban antes de 001. Solo para una base nueva (usa `CREATE TABLE IF NOT EXISTS`) |
 | `sql/001_event_type.sql` | Columna `event.type` (tipo de evento, opcional) |
 | `sql/002_demo_user_password.sql` | Contraseña BCrypt del usuario semilla (id 1) |
 | `sql/003_user_avatar.sql` | Columna `app_user.avatar` (foto de perfil). **Sin ella el backend no arranca** |
