@@ -503,6 +503,55 @@ class EventServiceTest {
     }
 
     @Test
+    void changeTaskStatus_postponeWithDateSuggestsOnlyDaysAfterTheCurrentDate() {
+        Event event = event(10L);
+        Task existing = existingTask(event, 5L);
+        LocalDate due = LocalDate.now().plusDays(8);
+        existing.setDueDate(due);
+        event.setEventDate(LocalDate.now().plusDays(20));
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        when(eventRepository.save(event)).thenReturn(event);
+
+        eventService.changeTaskStatus(10L, 5L,
+                new TaskStatusRequest(TaskStatus.POSTPONED, null, LocalDate.now().plusDays(10)));
+
+        // El 409 sugeriría días desde hoy+9: ninguno antes de la fecha actual de la gestión.
+        verify(capacityService).ensureFits(eq(1L), eq(due.plusDays(1)), eq(LocalDate.now().plusDays(10)),
+                any(), eq(5L), any());
+    }
+
+    @Test
+    void changeTaskStatus_postponeWithDateOfAnOverdueTaskSuggestsFromTomorrow() {
+        Event event = event(10L);
+        Task existing = existingTask(event, 5L);
+        existing.setDueDate(LocalDate.now().minusDays(2));
+        event.setEventDate(LocalDate.now().plusDays(20));
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        when(eventRepository.save(event)).thenReturn(event);
+
+        eventService.changeTaskStatus(10L, 5L,
+                new TaskStatusRequest(TaskStatus.POSTPONED, null, LocalDate.now().plusDays(3)));
+
+        verify(capacityService).ensureFits(eq(1L), eq(LocalDate.now().plusDays(1)), eq(LocalDate.now().plusDays(3)),
+                any(), eq(5L), any());
+    }
+
+    @Test
+    void updateTask_reschedulingStillSuggestsFromToday() {
+        Event event = event(10L);
+        Task existing = existingTask(event, 5L);
+        existing.setDueDate(LocalDate.of(2026, 11, 19));
+        existing.setEstimatedHours(new BigDecimal("3.00"));
+        when(eventRepository.findDetailByIdAndUserId(10L, 1L)).thenReturn(Optional.of(event));
+        when(eventRepository.save(event)).thenReturn(event);
+
+        eventService.updateTask(10L, 5L, task("Confirmar menú", new BigDecimal("3"), TaskStatus.POSTPONED));
+
+        verify(capacityService).ensureFits(eq(1L), eq(LocalDate.now()), eq(LocalDate.of(2026, 11, 20)),
+                any(), eq(5L), any());
+    }
+
+    @Test
     void changeTaskStatus_postponeWithoutAnyFreeDayIsRejectedAndNothingChanges() {
         Event event = event(10L);
         Task existing = existingTask(event, 5L);

@@ -147,7 +147,7 @@ public class EventService {
         LocalDate newDate = request.dueDate() != null ? request.dueDate() : task.getDueDate();
         BigDecimal newHours = estimatedHours(request);
         TaskStatus newStatus = request.status() != null ? request.status() : task.getStatus();
-        validateChange(event, task, newDate, newHours, newStatus);
+        validateChange(event, task, newDate, newHours, newStatus, LocalDate.now());
 
         task.setName(request.name().trim());
         task.setDescription(request.description());
@@ -173,10 +173,12 @@ public class EventService {
         TaskStatus target = request.status();
 
         LocalDate newDate = task.getDueDate();
+        LocalDate suggestFrom = LocalDate.now();
         if (target == TaskStatus.POSTPONED) {
             // Sin fecha, se busca desde el día siguiente a la fecha actual de la gestión (o desde mañana si ya
-            // pasó), para que posponer nunca la adelante.
+            // pasó), para que posponer nunca la adelante. Con fecha, el 409 sugiere días desde ese mismo punto.
             LocalDate searchFrom = task.getDueDate().isAfter(LocalDate.now()) ? task.getDueDate() : LocalDate.now();
+            suggestFrom = searchFrom.plusDays(1);
             newDate = request.dueDate() != null
                     ? request.dueDate()
                     : capacityService.nextFreeDate(CurrentUser.id(), searchFrom, event.getEventDate(),
@@ -184,7 +186,7 @@ public class EventService {
                             .orElseThrow(() -> new ConflictException("No hay un día libre antes del evento para «"
                                     + task.getName() + "». Reduce sus horas o elige una fecha."));
         }
-        validateChange(event, task, newDate, task.getEstimatedHours(), target);
+        validateChange(event, task, newDate, task.getEstimatedHours(), target, suggestFrom);
 
         task.setDueDate(newDate);
         applyStatus(task, target);
@@ -194,8 +196,13 @@ public class EventService {
         return toDetail(eventRepository.save(event));
     }
 
-    /** Reglas de fecha y de límite diario compartidas por editar, reprogramar y posponer. */
-    private void validateChange(Event event, Task task, LocalDate newDate, BigDecimal newHours, TaskStatus newStatus) {
+    /**
+     * Reglas de fecha y de límite diario compartidas por editar, reprogramar y posponer. {@code suggestFrom} es el
+     * primer día que el 409 puede sugerir: hoy al editar o reprogramar, después de la fecha actual al posponer.
+     */
+    private void validateChange(
+            Event event, Task task, LocalDate newDate, BigDecimal newHours, TaskStatus newStatus, LocalDate suggestFrom
+    ) {
         LocalDate today = LocalDate.now();
         boolean dateChanged = !newDate.equals(task.getDueDate());
         boolean hoursChanged = newHours.compareTo(task.getEstimatedHours()) != 0;
@@ -208,7 +215,8 @@ public class EventService {
             throw new FieldErrorException("dueDate", "La fecha límite no puede ser posterior al evento.");
         }
         if (newStatus != TaskStatus.DONE && (dateChanged || hoursChanged || reopened)) {
-            capacityService.ensureFits(CurrentUser.id(), today, newDate, newHours, task.getId(), event.getEventDate());
+            capacityService.ensureFits(CurrentUser.id(), suggestFrom, newDate, newHours, task.getId(),
+                    event.getEventDate());
         }
     }
 

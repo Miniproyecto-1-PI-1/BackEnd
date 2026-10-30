@@ -37,10 +37,11 @@ public class DailyCapacityService {
 
     /**
      * Verifica que ubicar {@code hours} en {@code date} no pase del límite. {@code excludeTaskId} es la gestión
-     * que se está moviendo o editando (null si es nueva); {@code eventDate} acota las fechas sugeridas.
+     * que se está moviendo o editando (null si es nueva); las fechas sugeridas van de {@code suggestFrom}
+     * (normalmente hoy; al posponer, el día siguiente a la fecha actual de la gestión) hasta {@code eventDate}.
      */
     public void ensureFits(
-            Long userId, LocalDate today, LocalDate date, BigDecimal hours, Long excludeTaskId, LocalDate eventDate
+            Long userId, LocalDate suggestFrom, LocalDate date, BigDecimal hours, Long excludeTaskId, LocalDate eventDate
     ) {
         long excludeId = excludeTaskId == null ? NO_TASK : excludeTaskId;
         int limit = limitOf(userId);
@@ -52,7 +53,7 @@ public class DailyCapacityService {
         }
         throw new OverloadConflictException(
                 date, planned, hours, resulting, limit,
-                suggestDates(userId, today, eventDate, excludeId, hours, limit));
+                suggestDates(userId, suggestFrom, eventDate, excludeId, hours, limit));
     }
 
     /** Para un evento nuevo: suma las gestiones que caen el mismo día entre sí y con lo que ya existe. */
@@ -114,26 +115,26 @@ public class DailyCapacityService {
         return value == null ? BigDecimal.ZERO : value;
     }
 
-    /** Próximos días (hasta el evento) donde la gestión cabe dentro del límite diario. */
+    /** Próximos días desde {@code from} (hasta el evento) donde la gestión cabe dentro del límite diario. */
     private List<SuggestedDate> suggestDates(
-            Long userId, LocalDate today, LocalDate eventDate, long excludeId, BigDecimal hours, int limit
+            Long userId, LocalDate from, LocalDate eventDate, long excludeId, BigDecimal hours, int limit
     ) {
-        LocalDate last = today.plusDays(SUGGESTION_WINDOW_DAYS);
+        LocalDate last = from.plusDays(SUGGESTION_WINDOW_DAYS);
         if (eventDate != null && eventDate.isBefore(last)) {
             last = eventDate;
         }
-        if (last.isBefore(today)) {
+        if (last.isBefore(from)) {
             return List.of();
         }
 
         Map<LocalDate, BigDecimal> load = new HashMap<>();
-        for (DayLoad day : taskRepository.sumPlannedHoursByDate(userId, today, last, excludeId)) {
+        for (DayLoad day : taskRepository.sumPlannedHoursByDate(userId, from, last, excludeId)) {
             load.put(day.getDate(), day.getHours());
         }
 
         BigDecimal max = BigDecimal.valueOf(limit);
         List<SuggestedDate> suggestions = new ArrayList<>();
-        for (LocalDate day = today; !day.isAfter(last) && suggestions.size() < MAX_SUGGESTIONS; day = day.plusDays(1)) {
+        for (LocalDate day = from; !day.isAfter(last) && suggestions.size() < MAX_SUGGESTIONS; day = day.plusDays(1)) {
             BigDecimal planned = load.getOrDefault(day, BigDecimal.ZERO);
             if (planned.add(hours).compareTo(max) <= 0) {
                 suggestions.add(new SuggestedDate(day, max.subtract(planned)));
